@@ -229,6 +229,21 @@ export default function Profile() {
         </motion.div>
       </Link>
 
+      {/* Admin Dashboard Link (admin only) */}
+      {user?.role === "admin" && (
+        <Link href="/admin">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-lime rounded-2xl px-4 py-3.5 flex items-center gap-3 mb-5 cursor-pointer hover:bg-lime/10 transition-colors"
+          >
+            <Shield size={18} className="text-lime" />
+            <span className="text-sm font-semibold text-lime flex-1">Admin Dashboard</span>
+            <ChevronRight size={14} className="text-lime" />
+          </motion.div>
+        </Link>
+      )}
+
       {/* Menu items */}
       <div className="glass rounded-2xl overflow-hidden mb-5">
         {MENU_ITEMS.map((item, i) => (

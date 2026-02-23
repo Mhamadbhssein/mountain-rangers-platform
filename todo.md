@@ -19,3 +19,18 @@
 - [x] Build backend API routes (tRPC) for all entities
 - [x] Connect frontend pages to backend API
 - [x] Write vitest tests for backend routes
+
+## Admin Dashboard
+- [x] Admin dashboard layout with sidebar navigation
+- [x] Overview stats: total bookings, revenue, active trips, user count
+- [x] Analytics charts: bookings over time, revenue per trip, seat fill rate
+- [x] Trip management: create, edit, delete, toggle active/inactive
+- [x] Bookings management: view all, cancel, filter by trip/status
+- [x] Seat map view per trip showing booked vs available seats
+- [x] User management: list all users, view profiles, adjust roles
+- [x] Loyalty card management: view all loyalty profiles, approve NFC requests
+- [x] Community moderation: delete posts, manage content
+- [x] Admin-only route protection (role=admin check)
+- [x] Admin API routes for all entities
+- [x] Admin link in Profile page for admin users
+- [x] Admin vitest tests (40 total tests passing)

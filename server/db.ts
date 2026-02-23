@@ -1,4 +1,4 @@
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, asc, count, sum, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -11,7 +11,6 @@ import {
   type InsertTrip,
   type InsertBooking,
   type InsertCommunityPost,
-  type InsertLoyalty,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { nanoid } from "nanoid";
@@ -34,9 +33,7 @@ export async function getDb() {
  * User helpers
  * ============================================================ */
 export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) {
-    throw new Error("User openId is required for upsert");
-  }
+  if (!user.openId) throw new Error("User openId is required for upsert");
 
   const db = await getDb();
   if (!db) {
@@ -45,9 +42,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
 
   try {
-    const values: InsertUser = {
-      openId: user.openId,
-    };
+    const values: InsertUser = { openId: user.openId };
     const updateSet: Record<string, unknown> = {};
 
     const textFields = ["name", "email", "loginMethod"] as const;
@@ -75,17 +70,10 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.role = "admin";
     }
 
-    if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
-    }
+    if (!values.lastSignedIn) values.lastSignedIn = new Date();
+    if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
 
-    if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date();
-    }
-
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
+    await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
   } catch (error) {
     console.error("[Database] Failed to upsert user:", error);
     throw error;
@@ -108,6 +96,12 @@ export async function getAllTrips() {
   return db.select().from(trips).where(eq(trips.isActive, true)).orderBy(trips.date);
 }
 
+export async function getAllTripsAdmin() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(trips).orderBy(asc(trips.date));
+}
+
 export async function getTripById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
@@ -122,23 +116,35 @@ export async function createTrip(trip: InsertTrip) {
   return result[0].insertId;
 }
 
+export async function updateTrip(id: number, data: Partial<InsertTrip>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(trips).set(data).where(eq(trips.id, id));
+}
+
+export async function deleteTrip(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Soft delete by deactivating
+  await db.update(trips).set({ isActive: false }).where(eq(trips.id, id));
+}
+
+export async function toggleTripStatus(id: number, isActive: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(trips).set({ isActive }).where(eq(trips.id, id));
+}
+
 export async function getBookedSeatsForTrip(tripId: number): Promise<number[]> {
   const db = await getDb();
   if (!db) return [];
   const result = await db
     .select({ seats: bookings.seats })
     .from(bookings)
-    .where(
-      and(
-        eq(bookings.tripId, tripId),
-        sql`${bookings.status} IN ('confirmed', 'pending')`
-      )
-    );
+    .where(and(eq(bookings.tripId, tripId), sql`${bookings.status} IN ('confirmed', 'pending')`));
   const allSeats: number[] = [];
   for (const row of result) {
-    if (Array.isArray(row.seats)) {
-      allSeats.push(...row.seats);
-    }
+    if (Array.isArray(row.seats)) allSeats.push(...row.seats);
   }
   return allSeats;
 }
@@ -178,10 +184,7 @@ export async function getUserBookings(userId: number) {
   const db = await getDb();
   if (!db) return [];
   const result = await db
-    .select({
-      booking: bookings,
-      trip: trips,
-    })
+    .select({ booking: bookings, trip: trips })
     .from(bookings)
     .innerJoin(trips, eq(bookings.tripId, trips.id))
     .where(eq(bookings.userId, userId))
@@ -198,6 +201,134 @@ export async function cancelBooking(bookingId: number, userId: number) {
     .where(and(eq(bookings.id, bookingId), eq(bookings.userId, userId)));
 }
 
+/* Admin booking helpers */
+export async function getAllBookingsAdmin() {
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db
+    .select({
+      booking: bookings,
+      trip: trips,
+      user: {
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        phone: users.phone,
+      },
+    })
+    .from(bookings)
+    .innerJoin(trips, eq(bookings.tripId, trips.id))
+    .innerJoin(users, eq(bookings.userId, users.id))
+    .orderBy(desc(bookings.bookedAt));
+  return result;
+}
+
+export async function getBookingsForTrip(tripId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db
+    .select({
+      booking: bookings,
+      user: {
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        phone: users.phone,
+      },
+    })
+    .from(bookings)
+    .innerJoin(users, eq(bookings.userId, users.id))
+    .where(eq(bookings.tripId, tripId))
+    .orderBy(asc(bookings.bookedAt));
+  return result;
+}
+
+export async function adminCancelBooking(bookingId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(bookings).set({ status: "cancelled" }).where(eq(bookings.id, bookingId));
+}
+
+export async function adminUpdateBookingStatus(
+  bookingId: number,
+  status: "confirmed" | "pending" | "completed" | "cancelled"
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(bookings).set({ status }).where(eq(bookings.id, bookingId));
+}
+
+/* ============================================================
+ * Analytics helpers
+ * ============================================================ */
+export async function getAdminStats() {
+  const db = await getDb();
+  if (!db) return { totalBookings: 0, totalRevenue: 0, activeTrips: 0, totalUsers: 0, confirmedBookings: 0 };
+
+  const [bookingStats] = await db
+    .select({
+      totalBookings: count(bookings.id),
+      confirmedBookings: sql<number>`SUM(CASE WHEN ${bookings.status} IN ('confirmed','completed') THEN 1 ELSE 0 END)`,
+      totalRevenue: sql<string>`SUM(CASE WHEN ${bookings.status} IN ('confirmed','completed') THEN ${bookings.totalPrice} ELSE 0 END)`,
+    })
+    .from(bookings);
+
+  const [tripStats] = await db
+    .select({ activeTrips: count(trips.id) })
+    .from(trips)
+    .where(eq(trips.isActive, true));
+
+  const [userStats] = await db.select({ totalUsers: count(users.id) }).from(users);
+
+  return {
+    totalBookings: Number(bookingStats?.totalBookings ?? 0),
+    confirmedBookings: Number(bookingStats?.confirmedBookings ?? 0),
+    totalRevenue: parseFloat(String(bookingStats?.totalRevenue ?? "0")),
+    activeTrips: Number(tripStats?.activeTrips ?? 0),
+    totalUsers: Number(userStats?.totalUsers ?? 0),
+  };
+}
+
+export async function getRevenueByTrip() {
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db
+    .select({
+      tripId: trips.id,
+      tripTitle: trips.title,
+      bookingCount: count(bookings.id),
+      revenue: sql<string>`SUM(CASE WHEN ${bookings.status} IN ('confirmed','completed') THEN ${bookings.totalPrice} ELSE 0 END)`,
+      confirmedCount: sql<number>`SUM(CASE WHEN ${bookings.status} IN ('confirmed','completed') THEN 1 ELSE 0 END)`,
+    })
+    .from(trips)
+    .leftJoin(bookings, eq(trips.id, bookings.tripId))
+    .groupBy(trips.id, trips.title)
+    .orderBy(desc(trips.date));
+  return result.map((r) => ({
+    ...r,
+    revenue: parseFloat(String(r.revenue ?? "0")),
+    bookingCount: Number(r.bookingCount),
+    confirmedCount: Number(r.confirmedCount),
+  }));
+}
+
+export async function getRecentBookings(limit = 10) {
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db
+    .select({
+      booking: bookings,
+      trip: { id: trips.id, title: trips.title },
+      user: { id: users.id, name: users.name },
+    })
+    .from(bookings)
+    .innerJoin(trips, eq(bookings.tripId, trips.id))
+    .innerJoin(users, eq(bookings.userId, users.id))
+    .orderBy(desc(bookings.bookedAt))
+    .limit(limit);
+  return result;
+}
+
 /* ============================================================
  * Community helpers
  * ============================================================ */
@@ -207,11 +338,7 @@ export async function getAllPosts() {
   const result = await db
     .select({
       post: communityPosts,
-      author: {
-        id: users.id,
-        name: users.name,
-        avatarUrl: users.avatarUrl,
-      },
+      author: { id: users.id, name: users.name, avatarUrl: users.avatarUrl },
     })
     .from(communityPosts)
     .innerJoin(users, eq(communityPosts.userId, users.id))
@@ -219,7 +346,12 @@ export async function getAllPosts() {
   return result;
 }
 
-export async function createPost(data: { userId: number; tripTitle?: string; content: string; images?: string[] }) {
+export async function createPost(data: {
+  userId: number;
+  tripTitle?: string;
+  content: string;
+  images?: string[];
+}) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const values: InsertCommunityPost = {
@@ -230,6 +362,14 @@ export async function createPost(data: { userId: number; tripTitle?: string; con
   };
   const result = await db.insert(communityPosts).values(values);
   return result[0].insertId;
+}
+
+export async function deletePost(postId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Delete likes first
+  await db.delete(postLikes).where(eq(postLikes.postId, postId));
+  await db.delete(communityPosts).where(eq(communityPosts.id, postId));
 }
 
 export async function toggleLike(userId: number, postId: number) {
@@ -267,6 +407,41 @@ export async function getUserLikedPosts(userId: number): Promise<number[]> {
     .from(postLikes)
     .where(eq(postLikes.userId, userId));
   return result.map((r) => r.postId);
+}
+
+/* ============================================================
+ * User management helpers (admin)
+ * ============================================================ */
+export async function getAllUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  const allUsers = await db.select().from(users).orderBy(desc(users.createdAt));
+  // Enrich with booking count and loyalty points
+  const enriched = await Promise.all(
+    allUsers.map(async (user) => {
+      const userBookings = await db!
+        .select({ id: bookings.id })
+        .from(bookings)
+        .where(eq(bookings.userId, user.id));
+      const loyaltyRow = await db!
+        .select({ points: loyalty.points })
+        .from(loyalty)
+        .where(eq(loyalty.userId, user.id))
+        .limit(1);
+      return {
+        ...user,
+        bookingCount: userBookings.length,
+        loyaltyPoints: loyaltyRow[0]?.points ?? 0,
+      };
+    })
+  );
+  return enriched;
+}
+
+export async function updateUserRole(userId: number, role: "user" | "admin") {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(users).set({ role }).where(eq(users.id, userId));
 }
 
 /* ============================================================
@@ -315,7 +490,6 @@ export async function addLoyaltyPoints(userId: number, points: number) {
     })
     .where(eq(loyalty.userId, userId));
 
-  // Update level based on new points
   const updated = await db.select().from(loyalty).where(eq(loyalty.userId, userId)).limit(1);
   if (updated.length > 0) {
     const totalPoints = updated[0].points;
@@ -334,4 +508,34 @@ export async function requestNfcCard(userId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(loyalty).set({ nfcCardRequested: true }).where(eq(loyalty.userId, userId));
+}
+
+export async function getAllLoyaltyProfiles() {
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db
+    .select({
+      loyalty: loyalty,
+      user: { id: users.id, name: users.name, email: users.email },
+    })
+    .from(loyalty)
+    .innerJoin(users, eq(loyalty.userId, users.id))
+    .orderBy(desc(loyalty.points));
+  return result;
+}
+
+export async function approveNfcCard(loyaltyId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Mark as processed (reset request flag - card has been issued)
+  await db.update(loyalty).set({ nfcCardRequested: false }).where(eq(loyalty.id, loyaltyId));
+}
+
+export async function adminAdjustPoints(userId: number, points: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(loyalty)
+    .set({ points: sql`${loyalty.points} + ${points}` })
+    .where(eq(loyalty.userId, userId));
 }
