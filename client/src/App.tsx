@@ -14,8 +14,8 @@ import Community from "./pages/Community";
 import Profile from "./pages/Profile";
 import LoyaltyCard from "./pages/LoyaltyCard";
 import { useState, useEffect } from "react";
-
 function Router() {
+  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       <Route path="/" component={Explore} />

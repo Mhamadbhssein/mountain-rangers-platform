@@ -1,6 +1,6 @@
-/* Home page redirects to Explore - kept for compatibility */
+/* Home page redirects to Explore */
 import { Redirect } from "wouter";
 
 export default function Home() {
-  return <Redirect to="/" />;
+  return <Redirect to="/explore" />;
 }

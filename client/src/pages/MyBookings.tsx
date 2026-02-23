@@ -12,12 +12,16 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  ChevronRight,
   Ticket,
+  Loader2,
 } from "lucide-react";
-import { BOOKINGS, LOGOS } from "@/lib/data";
+import { LOGOS } from "@/lib/data";
 import { useState } from "react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { getLoginUrl } from "@/const";
+import { Button } from "@/components/ui/button";
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: any; label: string }> = {
   confirmed: {
@@ -50,15 +54,62 @@ const TABS = ["Upcoming", "Past"];
 
 export default function MyBookings() {
   const [activeTab, setActiveTab] = useState("Upcoming");
-  const [showTicket, setShowTicket] = useState<string | null>(null);
+  const [showTicket, setShowTicket] = useState<number | null>(null);
+  const { isAuthenticated, loading: authLoading } = useAuth();
 
-  const upcoming = BOOKINGS.filter(
-    (b) => b.status === "confirmed" || b.status === "pending"
+  const { data: myBookings, isLoading } = trpc.bookings.myBookings.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+
+  const cancelMutation = trpc.bookings.cancel.useMutation({
+    onSuccess: () => {
+      toast.success("Booking cancelled");
+    },
+  });
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 size={32} className="text-lime animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-5">
+        <CalendarCheck size={48} className="text-muted-foreground/30 mb-4" />
+        <p className="text-foreground font-serif text-xl mb-2">Sign in to view bookings</p>
+        <p className="text-muted-foreground text-sm mb-6 text-center">
+          Log in to see your upcoming trips and booking history
+        </p>
+        <Button
+          className="bg-lime hover:bg-lime-light text-black font-semibold px-8 py-5 rounded-xl"
+          onClick={() => { window.location.href = getLoginUrl(); }}
+        >
+          Sign In
+        </Button>
+      </div>
+    );
+  }
+
+  const allBookings = myBookings ?? [];
+  const upcoming = allBookings.filter(
+    (b) => b.booking.status === "confirmed" || b.booking.status === "pending"
   );
-  const past = BOOKINGS.filter(
-    (b) => b.status === "completed" || b.status === "cancelled"
+  const past = allBookings.filter(
+    (b) => b.booking.status === "completed" || b.booking.status === "cancelled"
   );
-  const bookings = activeTab === "Upcoming" ? upcoming : past;
+  const displayBookings = activeTab === "Upcoming" ? upcoming : past;
+
+  const formatDate = (date: Date | string) => {
+    const d = new Date(date);
+    return d.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
 
   return (
     <div className="min-h-screen px-5 pt-12 pb-4">
@@ -93,130 +144,138 @@ export default function MyBookings() {
       </div>
 
       {/* Booking cards */}
-      <div className="space-y-4">
-        {bookings.map((booking, i) => {
-          const status = STATUS_CONFIG[booking.status];
-          const StatusIcon = status.icon;
+      {isLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 size={32} className="text-lime animate-spin" />
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {displayBookings.map((row, i) => {
+            const { booking, trip } = row;
+            const status = STATUS_CONFIG[booking.status] ?? STATUS_CONFIG.confirmed;
+            const StatusIcon = status.icon;
+            const seats: number[] = Array.isArray(booking.seats) ? booking.seats : [];
 
-          return (
-            <motion.div
-              key={booking.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: i * 0.08 }}
-              className="glass rounded-2xl overflow-hidden"
-            >
-              {/* Trip image header */}
-              <div className="h-20 relative">
-                <img
-                  src={booking.tripImage}
-                  alt={booking.tripTitle}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">
-                  <p className="text-white font-semibold text-sm">
-                    {booking.tripTitle}
-                  </p>
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${status.bg} ${status.color}`}
-                  >
-                    {status.label}
-                  </span>
-                </div>
-              </div>
-
-              {/* Booking details */}
-              <div className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Clock size={14} />
-                    <span className="text-xs">
-                      {booking.date} at {booking.time}
+            return (
+              <motion.div
+                key={booking.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: i * 0.08 }}
+                className="glass rounded-2xl overflow-hidden"
+              >
+                {/* Trip image header */}
+                <div className="h-20 relative">
+                  <img
+                    src={trip.imageUrl ?? ""}
+                    alt={trip.title}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                  <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">
+                    <p className="text-white font-semibold text-sm">
+                      {trip.title}
+                    </p>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${status.bg} ${status.color}`}
+                    >
+                      {status.label}
                     </span>
                   </div>
-                  <span className="text-xs text-muted-foreground font-mono">
-                    {booking.referenceCode}
-                  </span>
                 </div>
 
-                <div className="flex items-center justify-between text-sm">
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground text-xs">
-                      {booking.passengers} passenger{booking.passengers > 1 ? "s" : ""} · Seats{" "}
-                      {booking.seats.join(", ")}
-                    </p>
-                    <p className="text-muted-foreground text-xs">
-                      {booking.paymentMethod}
-                    </p>
+                {/* Booking details */}
+                <div className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Clock size={14} />
+                      <span className="text-xs">
+                        {formatDate(booking.bookedAt)}
+                      </span>
+                    </div>
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {booking.referenceCode}
+                    </span>
                   </div>
-                  <p className="text-lime font-bold">${booking.totalPrice}</p>
-                </div>
 
-                {/* Actions */}
-                {booking.status === "confirmed" && (
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      onClick={() => setShowTicket(showTicket === booking.id ? null : booking.id)}
-                      className="flex-1 glass-lime rounded-xl py-2.5 flex items-center justify-center gap-2 text-lime text-xs font-medium"
-                    >
-                      <QrCode size={14} />
-                      {showTicket === booking.id ? "Hide Ticket" : "View Ticket"}
-                    </button>
-                    <button
-                      onClick={() => toast.success("Reminder sent via WhatsApp!")}
-                      className="flex-1 glass rounded-xl py-2.5 flex items-center justify-center gap-2 text-muted-foreground text-xs font-medium hover:text-foreground"
-                    >
-                      <Ticket size={14} />
-                      WhatsApp
-                    </button>
-                  </div>
-                )}
-
-                {/* QR Ticket */}
-                {showTicket === booking.id && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="pt-3 border-t border-white/10"
-                  >
-                    <div className="bg-white rounded-xl p-4 text-center">
-                      <img
-                        src={LOGOS.iconDark}
-                        alt="Mountain Rangers"
-                        className="h-16 mx-auto mb-2"
-                      />
-                      <div className="w-32 h-32 mx-auto bg-black/10 rounded-lg flex items-center justify-center mb-2">
-                        <QrCode size={80} className="text-black/80" />
-                      </div>
-                      <p className="text-black font-mono font-bold text-sm">
-                        {booking.referenceCode}
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground text-xs">
+                        {booking.passengers} passenger{booking.passengers > 1 ? "s" : ""} · Seats{" "}
+                        {seats.join(", ")}
                       </p>
-                      <p className="text-black/50 text-xs mt-1">
-                        Show this at check-in
+                      <p className="text-muted-foreground text-xs">
+                        {booking.paymentMethod}
                       </p>
                     </div>
-                  </motion.div>
-                )}
-              </div>
-            </motion.div>
-          );
-        })}
+                    <p className="text-lime font-bold">${booking.totalPrice}</p>
+                  </div>
 
-        {bookings.length === 0 && (
-          <div className="text-center py-16">
-            <CalendarCheck
-              size={48}
-              className="text-muted-foreground/30 mx-auto mb-4"
-            />
-            <p className="text-muted-foreground">No {activeTab.toLowerCase()} bookings</p>
-            <p className="text-muted-foreground/60 text-sm mt-1">
-              Your booking history will appear here
-            </p>
-          </div>
-        )}
-      </div>
+                  {/* Actions */}
+                  {booking.status === "confirmed" && (
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => setShowTicket(showTicket === booking.id ? null : booking.id)}
+                        className="flex-1 glass-lime rounded-xl py-2.5 flex items-center justify-center gap-2 text-lime text-xs font-medium"
+                      >
+                        <QrCode size={14} />
+                        {showTicket === booking.id ? "Hide Ticket" : "View Ticket"}
+                      </button>
+                      <button
+                        onClick={() => toast.success("Reminder sent via WhatsApp!")}
+                        className="flex-1 glass rounded-xl py-2.5 flex items-center justify-center gap-2 text-muted-foreground text-xs font-medium hover:text-foreground"
+                      >
+                        <Ticket size={14} />
+                        WhatsApp
+                      </button>
+                    </div>
+                  )}
+
+                  {/* QR Ticket */}
+                  {showTicket === booking.id && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="pt-3 border-t border-white/10"
+                    >
+                      <div className="bg-white rounded-xl p-4 text-center">
+                        <img
+                          src={LOGOS.iconDark}
+                          alt="Mountain Rangers"
+                          className="h-16 mx-auto mb-2"
+                        />
+                        <div className="w-32 h-32 mx-auto bg-black/10 rounded-lg flex items-center justify-center mb-2">
+                          <QrCode size={80} className="text-black/80" />
+                        </div>
+                        <p className="text-black font-mono font-bold text-sm">
+                          {booking.referenceCode}
+                        </p>
+                        <p className="text-black/50 text-xs mt-1">
+                          Show this at check-in
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
+
+          {displayBookings.length === 0 && (
+            <div className="text-center py-16">
+              <CalendarCheck
+                size={48}
+                className="text-muted-foreground/30 mx-auto mb-4"
+              />
+              <p className="text-muted-foreground">No {activeTab.toLowerCase()} bookings</p>
+              <p className="text-muted-foreground/60 text-sm mt-1">
+                Your booking history will appear here
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

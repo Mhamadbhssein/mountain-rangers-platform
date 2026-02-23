@@ -11,7 +11,6 @@ import {
   MapPin,
   Clock,
   Star,
-  Mountain,
   Users,
   CheckCircle2,
   Share2,
@@ -19,10 +18,11 @@ import {
   CalendarDays,
   Ruler,
   TrendingUp,
+  Loader2,
 } from "lucide-react";
-import { TRIPS } from "@/lib/data";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc";
 
 const DIFFICULTY_COLORS: Record<string, string> = {
   Easy: "bg-green-500/20 text-green-400 border-green-500/30",
@@ -36,7 +36,20 @@ export default function TripDetail() {
   const [, navigate] = useLocation();
   const [liked, setLiked] = useState(false);
 
-  const trip = TRIPS.find((t) => t.id === id);
+  const tripId = Number(id);
+  const { data: trip, isLoading } = trpc.trips.getById.useQuery(
+    { id: tripId },
+    { enabled: !isNaN(tripId) }
+  );
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 size={32} className="text-lime animate-spin" />
+      </div>
+    );
+  }
+
   if (!trip) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -45,15 +58,31 @@ export default function TripDetail() {
     );
   }
 
-  const seatsLeft = trip.totalSeats - trip.bookedSeats.length;
-  const fillPercent = (trip.bookedSeats.length / trip.totalSeats) * 100;
+  const seatsLeft = trip.availableSeats;
+  const fillPercent = ((trip.totalSeats - seatsLeft) / trip.totalSeats) * 100;
+  const highlights: string[] = Array.isArray(trip.highlights) ? trip.highlights : [];
+  const included: string[] = Array.isArray(trip.included) ? trip.included : [];
+
+  const formatDate = (date: Date | string) => {
+    const d = new Date(date);
+    return d.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  const shortDate = (date: Date | string) => {
+    const d = new Date(date);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
 
   return (
     <div className="min-h-screen pb-24">
       {/* Hero Image */}
       <section className="relative h-[55vh] min-h-[380px]">
         <img
-          src={trip.image}
+          src={trip.imageUrl ?? ""}
           alt={trip.title}
           className="absolute inset-0 w-full h-full object-cover"
         />
@@ -118,10 +147,10 @@ export default function TripDetail() {
         {/* Quick stats grid */}
         <div className="grid grid-cols-4 gap-2">
           {[
-            { icon: CalendarDays, label: "Date", value: trip.date.split(",")[0] },
+            { icon: CalendarDays, label: "Date", value: shortDate(trip.date) },
             { icon: Clock, label: "Duration", value: trip.duration },
-            { icon: TrendingUp, label: "Elevation", value: trip.elevation },
-            { icon: Ruler, label: "Distance", value: trip.distance },
+            { icon: TrendingUp, label: "Elevation", value: trip.elevation ?? "N/A" },
+            { icon: Ruler, label: "Distance", value: trip.distance ?? "N/A" },
           ].map((stat) => (
             <div
               key={stat.label}
@@ -180,32 +209,36 @@ export default function TripDetail() {
         </div>
 
         {/* Highlights */}
-        <div>
-          <h2 className="text-lg font-serif text-foreground mb-3">Highlights</h2>
-          <div className="flex flex-wrap gap-2">
-            {trip.highlights.map((h) => (
-              <span
-                key={h}
-                className="glass-lime rounded-full px-3 py-1.5 text-xs text-lime font-medium"
-              >
-                {h}
-              </span>
-            ))}
+        {highlights.length > 0 && (
+          <div>
+            <h2 className="text-lg font-serif text-foreground mb-3">Highlights</h2>
+            <div className="flex flex-wrap gap-2">
+              {highlights.map((h) => (
+                <span
+                  key={h}
+                  className="glass-lime rounded-full px-3 py-1.5 text-xs text-lime font-medium"
+                >
+                  {h}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* What's included */}
-        <div>
-          <h2 className="text-lg font-serif text-foreground mb-3">What's Included</h2>
-          <div className="space-y-2">
-            {trip.included.map((item) => (
-              <div key={item} className="flex items-center gap-2.5">
-                <CheckCircle2 size={16} className="text-lime shrink-0" />
-                <span className="text-sm text-muted-foreground">{item}</span>
-              </div>
-            ))}
+        {included.length > 0 && (
+          <div>
+            <h2 className="text-lg font-serif text-foreground mb-3">What's Included</h2>
+            <div className="space-y-2">
+              {included.map((item) => (
+                <div key={item} className="flex items-center gap-2.5">
+                  <CheckCircle2 size={16} className="text-lime shrink-0" />
+                  <span className="text-sm text-muted-foreground">{item}</span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Meeting point */}
         <div className="glass rounded-xl p-4">

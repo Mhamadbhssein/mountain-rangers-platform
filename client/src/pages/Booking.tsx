@@ -5,12 +5,11 @@
  * Interactive 24-seat bus layout with visual feedback
  * ============================================================ */
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
-  Users,
   Minus,
   Plus,
   Check,
@@ -19,10 +18,11 @@ import {
   Banknote,
   MessageCircle,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
-import { TRIPS } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
 
 type PaymentMethod = "cash" | "whish";
 
@@ -34,8 +34,39 @@ export default function Booking() {
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [payment, setPayment] = useState<PaymentMethod>("cash");
   const [confirmed, setConfirmed] = useState(false);
+  const [bookingRef, setBookingRef] = useState("");
 
-  const trip = TRIPS.find((t) => t.id === id);
+  const tripId = Number(id);
+  const { data: trip, isLoading } = trpc.trips.getById.useQuery(
+    { id: tripId },
+    { enabled: !isNaN(tripId) }
+  );
+
+  const { data: bookedSeatsData } = trpc.trips.getBookedSeats.useQuery(
+    { tripId },
+    { enabled: !isNaN(tripId) }
+  );
+
+  const bookedSeats = useMemo(() => bookedSeatsData ?? [], [bookedSeatsData]);
+
+  const createBooking = trpc.bookings.create.useMutation({
+    onSuccess: (data) => {
+      setBookingRef(data.referenceCode);
+      setConfirmed(true);
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to create booking");
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 size={32} className="text-lime animate-spin" />
+      </div>
+    );
+  }
+
   if (!trip) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -45,7 +76,7 @@ export default function Booking() {
   }
 
   const toggleSeat = (seatNum: number) => {
-    if (trip.bookedSeats.includes(seatNum)) return;
+    if (bookedSeats.includes(seatNum)) return;
     if (selectedSeats.includes(seatNum)) {
       setSelectedSeats(selectedSeats.filter((s) => s !== seatNum));
     } else if (selectedSeats.length < passengers) {
@@ -55,61 +86,25 @@ export default function Booking() {
     }
   };
 
+  const priceNum = Number(trip.price);
+
   const handleConfirm = () => {
-    setConfirmed(true);
+    createBooking.mutate({
+      tripId: trip.id,
+      passengers,
+      seats: selectedSeats,
+      totalPrice: priceNum * passengers,
+      paymentMethod: payment,
+    });
   };
 
-  const refCode = `MR-2026-${String(Math.floor(Math.random() * 9000) + 1000)}`;
-
-  // Render seat grid (6 rows x 4 columns with aisle)
-  const renderSeatGrid = () => {
-    const rows = 6;
-    const cols = 4;
-    const seats: React.ReactElement[] = [];
-
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const seatNum = row * cols + col + 1;
-        const isBooked = trip.bookedSeats.includes(seatNum);
-        const isSelected = selectedSeats.includes(seatNum);
-
-        seats.push(
-          <motion.button
-            key={seatNum}
-            whileTap={!isBooked ? { scale: 0.9 } : {}}
-            onClick={() => toggleSeat(seatNum)}
-            disabled={isBooked}
-            className={`
-              w-12 h-12 rounded-lg text-xs font-semibold transition-all relative
-              ${col === 1 ? "mr-4" : ""}
-              ${col === 2 ? "ml-4" : ""}
-              ${
-                isBooked
-                  ? "bg-white/5 text-white/20 cursor-not-allowed"
-                  : isSelected
-                  ? "bg-lime text-black shadow-lg shadow-lime/20"
-                  : "bg-white/8 text-white/60 hover:bg-white/12 border border-white/10"
-              }
-            `}
-          >
-            {seatNum}
-            {isBooked && (
-              <X size={10} className="absolute top-1 right-1 text-white/20" />
-            )}
-            {isSelected && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="absolute -top-1 -right-1 w-4 h-4 bg-lime rounded-full flex items-center justify-center"
-              >
-                <Check size={10} className="text-black" />
-              </motion.div>
-            )}
-          </motion.button>
-        );
-      }
-    }
-    return seats;
+  const formatDate = (date: Date | string) => {
+    const d = new Date(date);
+    return d.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
   // Confirmation success screen
@@ -150,7 +145,7 @@ export default function Booking() {
           <div className="text-center">
             <p className="text-xs text-muted-foreground">Reference Code</p>
             <p className="text-xl font-mono font-bold text-lime mt-1">
-              {refCode}
+              {bookingRef}
             </p>
           </div>
           <div className="h-px bg-white/10" />
@@ -160,7 +155,7 @@ export default function Booking() {
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Date</span>
-            <span className="text-foreground">{trip.date}</span>
+            <span className="text-foreground">{formatDate(trip.date)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Passengers</span>
@@ -182,7 +177,7 @@ export default function Booking() {
           <div className="flex justify-between">
             <span className="text-muted-foreground font-medium">Total</span>
             <span className="text-lime font-bold text-lg">
-              ${trip.price * passengers}
+              ${priceNum * passengers}
             </span>
           </div>
         </motion.div>
@@ -291,7 +286,7 @@ export default function Booking() {
                 </div>
                 <button
                   onClick={() => {
-                    const maxSeats = trip.totalSeats - trip.bookedSeats.length;
+                    const maxSeats = trip.availableSeats;
                     setPassengers(Math.min(maxSeats, passengers + 1));
                   }}
                   className="w-12 h-12 rounded-full glass flex items-center justify-center text-foreground"
@@ -305,17 +300,17 @@ export default function Booking() {
             <div className="glass rounded-2xl p-4">
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-muted-foreground">
-                  ${trip.price} x {passengers} {passengers === 1 ? "person" : "people"}
+                  ${priceNum} x {passengers} {passengers === 1 ? "person" : "people"}
                 </span>
                 <span className="text-foreground font-medium">
-                  ${trip.price * passengers}
+                  ${priceNum * passengers}
                 </span>
               </div>
               <div className="h-px bg-white/10 my-2" />
               <div className="flex justify-between">
                 <span className="text-foreground font-medium">Total</span>
                 <span className="text-lime font-bold text-lg">
-                  ${trip.price * passengers}
+                  ${priceNum * passengers}
                 </span>
               </div>
             </div>
@@ -377,7 +372,7 @@ export default function Booking() {
                   return (
                     <div key={row} className="flex items-center justify-center gap-2">
                       {rowSeats.map((seatNum, colIdx) => {
-                        const isBooked = trip.bookedSeats.includes(seatNum);
+                        const isBooked = bookedSeats.includes(seatNum);
                         const isSelected = selectedSeats.includes(seatNum);
                         return (
                           <React.Fragment key={seatNum}>
@@ -385,7 +380,6 @@ export default function Booking() {
                               <div key={`aisle-${row}`} className="w-8" />
                             )}
                             <motion.button
-                              key={seatNum}
                               whileTap={!isBooked ? { scale: 0.9 } : {}}
                               onClick={() => toggleSeat(seatNum)}
                               disabled={isBooked}
@@ -442,14 +436,14 @@ export default function Booking() {
             <div className="glass rounded-2xl overflow-hidden">
               <div className="h-24 relative">
                 <img
-                  src={trip.image}
+                  src={trip.imageUrl ?? ""}
                   alt={trip.title}
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
                 <div className="absolute bottom-3 left-4">
                   <p className="text-white font-semibold text-sm">{trip.title}</p>
-                  <p className="text-white/60 text-xs">{trip.date} at {trip.time}</p>
+                  <p className="text-white/60 text-xs">{formatDate(trip.date)} at {trip.time}</p>
                 </div>
               </div>
               <div className="p-4 space-y-2">
@@ -528,15 +522,15 @@ export default function Booking() {
             <div className="glass rounded-2xl p-4">
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-muted-foreground">
-                  ${trip.price} x {passengers}
+                  ${priceNum} x {passengers}
                 </span>
-                <span className="text-foreground">${trip.price * passengers}</span>
+                <span className="text-foreground">${priceNum * passengers}</span>
               </div>
               <div className="h-px bg-white/10 my-2" />
               <div className="flex justify-between">
                 <span className="text-foreground font-medium">Total</span>
                 <span className="text-lime font-bold text-xl">
-                  ${trip.price * passengers}
+                  ${priceNum * passengers}
                 </span>
               </div>
             </div>
@@ -549,6 +543,7 @@ export default function Booking() {
         <div className="max-w-lg mx-auto">
           <Button
             className="w-full bg-lime hover:bg-lime-light text-black font-semibold py-6 rounded-xl text-base"
+            disabled={createBooking.isPending}
             onClick={() => {
               if (step === 1) {
                 setStep(2);
@@ -563,8 +558,10 @@ export default function Booking() {
               }
             }}
           >
-            {step === 3 ? (
-              <>Confirm Booking — ${trip.price * passengers}</>
+            {createBooking.isPending ? (
+              <Loader2 size={20} className="animate-spin" />
+            ) : step === 3 ? (
+              <>Confirm Booking — ${priceNum * passengers}</>
             ) : (
               <>
                 Continue <ChevronRight size={18} className="ml-1" />

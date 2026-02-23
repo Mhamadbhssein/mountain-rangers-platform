@@ -1,0 +1,21 @@
+# Project TODO
+
+- [x] Basic homepage / Explore page layout
+- [x] Bottom navigation with glass effect
+- [x] Trip cards with search and difficulty filter
+- [x] Trip detail page with booking CTA
+- [x] 3-step booking flow (passengers, seat selection, confirmation)
+- [x] My Bookings page with QR tickets
+- [x] Community social feed page
+- [x] Profile page with stats
+- [x] Loyalty card page with badges and NFC request
+- [x] Splash screen with branded animation
+- [x] 404 Not Found page styled to match theme
+- [x] Update logos to transparent background versions (bigger)
+- [x] Update fonts to Outfit + Playfair Display
+- [x] Upgrade to full-stack with database and user management
+- [x] Design database schema for trips, bookings, seats, loyalty, community
+- [x] Create seed script to populate initial trip data
+- [x] Build backend API routes (tRPC) for all entities
+- [x] Connect frontend pages to backend API
+- [x] Write vitest tests for backend routes

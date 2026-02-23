@@ -18,12 +18,15 @@ import {
   Sunrise,
   CreditCard,
   Nfc,
-  ChevronRight,
   Star,
+  Loader2,
 } from "lucide-react";
-import { LOYALTY, LOYALTY_LEVELS, LOGOS } from "@/lib/data";
+import { LOYALTY_LEVELS, LOGOS } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { getLoginUrl } from "@/const";
 
 const BADGE_ICONS: Record<string, any> = {
   mountain: Mountain,
@@ -38,15 +41,65 @@ const BADGE_ICONS: Record<string, any> = {
 
 export default function LoyaltyCard() {
   const [, navigate] = useLocation();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
 
-  const currentLevelIndex = LOYALTY_LEVELS.findIndex(
-    (l) => l.name === LOYALTY.level
-  );
-  const progressPercent =
-    ((LOYALTY.points - (LOYALTY_LEVELS[currentLevelIndex]?.minPoints || 0)) /
-      (LOYALTY.nextLevelPoints -
-        (LOYALTY_LEVELS[currentLevelIndex]?.minPoints || 0))) *
-    100;
+  const { data: loyaltyData, isLoading } = trpc.loyalty.get.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+
+  const requestNfcMutation = trpc.loyalty.requestNfcCard.useMutation({
+    onSuccess: () => {
+      toast.success("NFC card request submitted!");
+    },
+    onError: () => {
+      toast.error("Failed to request NFC card");
+    },
+  });
+
+  if (authLoading || isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 size={32} className="text-lime animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-5">
+        <Mountain size={48} className="text-muted-foreground/30 mb-4" />
+        <p className="text-foreground font-serif text-xl mb-2">Sign in to view loyalty card</p>
+        <p className="text-muted-foreground text-sm mb-6 text-center">
+          Log in to track your points and badges
+        </p>
+        <Button
+          className="bg-lime hover:bg-lime-light text-black font-semibold px-8 py-5 rounded-xl"
+          onClick={() => { window.location.href = getLoginUrl(); }}
+        >
+          Sign In
+        </Button>
+      </div>
+    );
+  }
+
+  const points = loyaltyData?.points ?? 0;
+  const level = loyaltyData?.level ?? "Explorer";
+  const tripsCompleted = loyaltyData?.tripsCompleted ?? 0;
+  const badges = (loyaltyData?.badges ?? []) as { name: string; icon: string; earned: boolean }[];
+  const nfcCardRequested = loyaltyData?.nfcCardRequested ?? false;
+
+  const currentLevelIndex = LOYALTY_LEVELS.findIndex((l) => l.name === level);
+  const currentLevelData = LOYALTY_LEVELS[currentLevelIndex];
+  const nextLevel = LOYALTY_LEVELS[currentLevelIndex + 1];
+  const nextLevelPoints = nextLevel?.minPoints ?? 5000;
+  const currentLevelMinPoints = currentLevelData?.minPoints ?? 0;
+  const progressPercent = nextLevel
+    ? ((points - currentLevelMinPoints) / (nextLevelPoints - currentLevelMinPoints)) * 100
+    : 100;
+
+  const memberSince = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+    : "2024";
 
   return (
     <div className="min-h-screen pb-8">
@@ -94,7 +147,7 @@ export default function LoyaltyCard() {
                   MEMBERSHIP
                 </p>
                 <p className="text-xs text-lime/70 font-mono">
-                  Since {LOYALTY.memberSince}
+                  Since {memberSince}
                 </p>
               </div>
             </div>
@@ -103,7 +156,7 @@ export default function LoyaltyCard() {
             <div className="mb-6">
               <p className="text-white/50 text-xs mb-1">Member</p>
               <p className="text-white text-xl font-semibold font-sans">
-                Trail Explorer
+                {user?.name ?? "Trail Explorer"}
               </p>
             </div>
 
@@ -113,19 +166,15 @@ export default function LoyaltyCard() {
                 <p className="text-white/50 text-xs mb-1">Level</p>
                 <p
                   className="text-xl font-bold font-sans"
-                  style={{
-                    color:
-                      LOYALTY_LEVELS.find((l) => l.name === LOYALTY.level)
-                        ?.color || "#B8D435",
-                  }}
+                  style={{ color: currentLevelData?.color || "#B8D435" }}
                 >
-                  {LOYALTY.level}
+                  {level}
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-white/50 text-xs mb-1">Points</p>
                 <p className="text-2xl font-bold text-lime font-sans">
-                  {LOYALTY.points.toLocaleString()}
+                  {points.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -151,47 +200,47 @@ export default function LoyaltyCard() {
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-foreground font-medium">
-                {LOYALTY.level}
+                {level}
               </span>
               <span className="text-sm text-muted-foreground">
-                {LOYALTY.nextLevel}
+                {nextLevel?.name ?? "Max Level"}
               </span>
             </div>
             <div className="h-3 bg-white/5 rounded-full overflow-hidden relative">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${progressPercent}%` }}
+                animate={{ width: `${Math.min(progressPercent, 100)}%` }}
                 transition={{ duration: 1.2, ease: "easeOut" }}
                 className="h-full rounded-full bg-gradient-to-r from-lime-dark to-lime"
               />
             </div>
             <div className="flex items-center justify-between mt-2">
               <span className="text-xs text-muted-foreground">
-                {LOYALTY.points.toLocaleString()} pts
+                {points.toLocaleString()} pts
               </span>
               <span className="text-xs text-lime">
-                {(LOYALTY.nextLevelPoints - LOYALTY.points).toLocaleString()} pts to go
+                {nextLevel ? `${(nextLevelPoints - points).toLocaleString()} pts to go` : "Max level reached!"}
               </span>
             </div>
           </div>
 
           {/* Level tiers */}
           <div className="flex items-center gap-1 mt-2">
-            {LOYALTY_LEVELS.map((level, i) => {
+            {LOYALTY_LEVELS.map((lvl, i) => {
               const isActive = i <= currentLevelIndex;
               return (
-                <div key={level.name} className="flex-1 flex flex-col items-center">
+                <div key={lvl.name} className="flex-1 flex flex-col items-center">
                   <div
                     className={`w-full h-1.5 rounded-full mb-2 ${
                       isActive ? "" : "bg-white/5"
                     }`}
-                    style={isActive ? { background: level.color } : {}}
+                    style={isActive ? { background: lvl.color } : {}}
                   />
                   <span
                     className="text-[9px] font-medium"
-                    style={{ color: isActive ? level.color : "oklch(0.5 0 0)" }}
+                    style={{ color: isActive ? lvl.color : "oklch(0.5 0 0)" }}
                   >
-                    {level.name}
+                    {lvl.name}
                   </span>
                 </div>
               );
@@ -204,7 +253,7 @@ export default function LoyaltyCard() {
       <section className="px-5 mb-6">
         <h2 className="text-lg font-serif text-foreground mb-4">Badges</h2>
         <div className="grid grid-cols-4 gap-3">
-          {LOYALTY.badges.map((badge, i) => {
+          {badges.map((badge, i) => {
             const IconComponent = BADGE_ICONS[badge.icon] || Star;
             return (
               <motion.div
@@ -291,10 +340,17 @@ export default function LoyaltyCard() {
             <div className="flex items-center justify-between">
               <span className="text-lime font-bold">$3.00</span>
               <Button
-                onClick={() => toast.info("Feature coming soon")}
+                onClick={() => {
+                  if (nfcCardRequested) {
+                    toast.info("NFC card already requested!");
+                    return;
+                  }
+                  requestNfcMutation.mutate();
+                }}
+                disabled={requestNfcMutation.isPending || nfcCardRequested}
                 className="bg-lime hover:bg-lime-light text-black font-semibold px-6 rounded-xl"
               >
-                Order Card
+                {nfcCardRequested ? "Requested" : requestNfcMutation.isPending ? "..." : "Order Card"}
               </Button>
             </div>
           </div>

@@ -19,10 +19,14 @@ import {
   HelpCircle,
   LogOut,
   Award,
-  MapPin,
+  Loader2,
 } from "lucide-react";
-import { LOYALTY, LOGOS, LOYALTY_LEVELS } from "@/lib/data";
+import { LOGOS, LOYALTY_LEVELS } from "@/lib/data";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { getLoginUrl } from "@/const";
+import { Button } from "@/components/ui/button";
 
 const MENU_ITEMS = [
   { icon: Bell, label: "Notifications", action: "toast" },
@@ -33,10 +37,55 @@ const MENU_ITEMS = [
 ];
 
 export default function Profile() {
-  const progressPercent =
-    ((LOYALTY.points - 1000) / (LOYALTY.nextLevelPoints - 1000)) * 100;
+  const { user, isAuthenticated, loading: authLoading, logout } = useAuth();
 
-  const currentLevelData = LOYALTY_LEVELS.find((l) => l.name === LOYALTY.level);
+  const { data: loyaltyData, isLoading: loyaltyLoading } = trpc.loyalty.get.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 size={32} className="text-lime animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-5">
+        <Mountain size={48} className="text-muted-foreground/30 mb-4" />
+        <p className="text-foreground font-serif text-xl mb-2">Sign in to view your profile</p>
+        <p className="text-muted-foreground text-sm mb-6 text-center">
+          Log in to track your trips, earn points, and manage your account
+        </p>
+        <Button
+          className="bg-lime hover:bg-lime-light text-black font-semibold px-8 py-5 rounded-xl"
+          onClick={() => { window.location.href = getLoginUrl(); }}
+        >
+          Sign In
+        </Button>
+      </div>
+    );
+  }
+
+  const points = loyaltyData?.points ?? 0;
+  const level = loyaltyData?.level ?? "Explorer";
+  const tripsCompleted = loyaltyData?.tripsCompleted ?? 0;
+  const badges = (loyaltyData?.badges ?? []) as { name: string; icon: string; earned: boolean }[];
+
+  const currentLevelData = LOYALTY_LEVELS.find((l) => l.name === level);
+  const currentLevelIdx = LOYALTY_LEVELS.findIndex((l) => l.name === level);
+  const nextLevel = LOYALTY_LEVELS[currentLevelIdx + 1];
+  const nextLevelPoints = nextLevel?.minPoints ?? 5000;
+  const currentLevelMinPoints = currentLevelData?.minPoints ?? 0;
+  const progressPercent = nextLevel
+    ? ((points - currentLevelMinPoints) / (nextLevelPoints - currentLevelMinPoints)) * 100
+    : 100;
+
+  const memberSince = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+    : "2024";
 
   return (
     <div className="min-h-screen px-5 pt-12 pb-6">
@@ -63,10 +112,10 @@ export default function Profile() {
           </div>
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-foreground font-sans">
-              Trail Explorer
+              {user?.name ?? "Trail Explorer"}
             </h2>
             <p className="text-sm text-muted-foreground">
-              Member since {LOYALTY.memberSince}
+              Member since {memberSince}
             </p>
             <div className="flex items-center gap-1 mt-1">
               <Award size={14} className="text-lime" />
@@ -74,7 +123,7 @@ export default function Profile() {
                 className="text-xs font-medium"
                 style={{ color: currentLevelData?.color || "#B8D435" }}
               >
-                {LOYALTY.level}
+                {level}
               </span>
             </div>
           </div>
@@ -84,21 +133,9 @@ export default function Profile() {
       {/* Stats grid */}
       <div className="grid grid-cols-3 gap-3 mb-5">
         {[
-          {
-            icon: Calendar,
-            value: LOYALTY.tripsCompleted,
-            label: "Trips",
-          },
-          {
-            icon: Star,
-            value: LOYALTY.points.toLocaleString(),
-            label: "Points",
-          },
-          {
-            icon: Trophy,
-            value: LOYALTY.badges.filter((b) => b.earned).length,
-            label: "Badges",
-          },
+          { icon: Calendar, value: tripsCompleted, label: "Trips" },
+          { icon: Star, value: points.toLocaleString(), label: "Points" },
+          { icon: Trophy, value: badges.filter((b) => b.earned).length, label: "Badges" },
         ].map((stat, i) => (
           <motion.div
             key={stat.label}
@@ -154,29 +191,29 @@ export default function Profile() {
                   className="text-lg font-bold"
                   style={{ color: currentLevelData?.color }}
                 >
-                  {LOYALTY.level}
+                  {level}
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-muted-foreground mb-1">Points</p>
                 <p className="text-lg font-bold text-lime">
-                  {LOYALTY.points.toLocaleString()}
+                  {points.toLocaleString()}
                 </p>
               </div>
             </div>
             <div className="mt-3">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] text-muted-foreground">
-                  Progress to {LOYALTY.nextLevel}
+                  Progress to {nextLevel?.name ?? "Max Level"}
                 </span>
                 <span className="text-[10px] text-lime">
-                  {LOYALTY.nextLevelPoints.toLocaleString()} pts
+                  {nextLevelPoints.toLocaleString()} pts
                 </span>
               </div>
               <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${progressPercent}%` }}
+                  animate={{ width: `${Math.min(progressPercent, 100)}%` }}
                   transition={{ duration: 1, ease: "easeOut" }}
                   className="h-full rounded-full bg-lime"
                 />
@@ -213,7 +250,10 @@ export default function Profile() {
 
       {/* Sign out */}
       <button
-        onClick={() => toast.info("Feature coming soon")}
+        onClick={() => {
+          logout();
+          toast.success("Signed out successfully");
+        }}
         className="w-full glass rounded-2xl px-4 py-3.5 flex items-center gap-3 text-red-400 hover:bg-red-400/5 transition-colors"
       >
         <LogOut size={18} />
