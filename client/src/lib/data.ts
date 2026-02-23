@@ -68,10 +68,10 @@ export interface LoyaltyInfo {
 
 // Logo URLs
 export const LOGOS = {
-  iconWhite: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663372447737/SFWHofoIcjJEOiHY.png",
-  nameWhite: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663372447737/GFqKysiOnsyqxrbf.png",
-  iconDark: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663372447737/oVgeDDYSkuVgoBGH.png",
-  nameDark: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663372447737/OACuVQyyVbliBNbf.png",
+  iconWhite: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663372447737/UNRHkjfTrElPUZin.png",
+  nameWhite: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663372447737/UtylpUmlTndrbyUk.png",
+  iconDark: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663372447737/GOBZfBdVHQKFNQoH.png",
+  nameDark: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663372447737/XDWOyJefBxPEiTLn.png",
 };
 
 // Image URLs

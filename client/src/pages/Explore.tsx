@@ -61,13 +61,15 @@ export default function Explore() {
             <img
               src={LOGOS.iconWhite}
               alt="Mountain Rangers"
-              className="h-10 w-auto"
+              className="h-28 w-auto drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]"
             />
-            <img
-              src={LOGOS.nameWhite}
-              alt="Mountain Rangers"
-              className="h-6 w-auto opacity-90"
-            />
+            <div className="glass rounded-xl px-4 py-2.5">
+              <img
+                src={LOGOS.nameWhite}
+                alt="Mountain Rangers"
+                className="h-10 w-auto"
+              />
+            </div>
           </div>
 
           {/* Hero text */}

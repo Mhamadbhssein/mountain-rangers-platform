@@ -185,7 +185,7 @@ export default function MyBookings() {
                       <img
                         src={LOGOS.iconDark}
                         alt="Mountain Rangers"
-                        className="h-8 mx-auto mb-2"
+                        className="h-16 mx-auto mb-2"
                       />
                       <div className="w-32 h-32 mx-auto bg-black/10 rounded-lg flex items-center justify-center mb-2">
                         <QrCode size={80} className="text-black/80" />

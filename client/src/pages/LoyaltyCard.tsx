@@ -88,7 +88,7 @@ export default function LoyaltyCard() {
           <div className="relative z-10">
             {/* Card header */}
             <div className="flex items-center justify-between mb-8">
-              <img src={LOGOS.iconWhite} alt="Mountain Rangers" className="h-10" />
+              <img src={LOGOS.iconWhite} alt="Mountain Rangers" className="h-18" />
               <div className="text-right">
                 <p className="text-[10px] text-lime/50 font-mono tracking-widest">
                   MEMBERSHIP

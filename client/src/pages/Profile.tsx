@@ -140,7 +140,7 @@ export default function Profile() {
 
           <div className="relative z-10">
             <div className="flex items-center justify-between mb-3">
-              <img src={LOGOS.iconWhite} alt="MR" className="h-8" />
+              <img src={LOGOS.iconWhite} alt="MR" className="h-16" />
               <span className="text-xs text-lime/60 font-mono">
                 LOYALTY CARD
               </span>

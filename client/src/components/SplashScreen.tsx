@@ -35,7 +35,7 @@ export default function SplashScreen({ show }: SplashScreenProps) {
           <motion.img
             src={LOGOS.iconWhite}
             alt="Mountain Rangers"
-            className="h-20 w-auto relative z-10 mb-6"
+            className="h-36 w-auto relative z-10 mb-6"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, ease: "easeOut" }}
@@ -45,7 +45,7 @@ export default function SplashScreen({ show }: SplashScreenProps) {
           <motion.img
             src={LOGOS.nameWhite}
             alt="Mountain Rangers"
-            className="h-6 w-auto relative z-10 mb-8"
+            className="h-14 w-auto relative z-10 mb-8"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
