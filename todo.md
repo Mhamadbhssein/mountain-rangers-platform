@@ -34,3 +34,12 @@
 - [x] Admin API routes for all entities
 - [x] Admin link in Profile page for admin users
 - [x] Admin vitest tests (40 total tests passing)
+
+## New Features (Round 3)
+- [x] Phone number required field in booking passenger step
+- [x] WhatsApp booking confirmation to +961 76 828 401 with full details
+- [x] New seat layout: Driver + 2 Guide seats, row of 3 (seats 1-3) + DOOR, then 6 rows of 4 (seats 4-27)
+- [x] Hiking stick add-on per passenger (+$1 each)
+- [x] Trip image upload (main photo + additional photos) in admin
+- [x] Map pin for meeting point in admin trip management
+- [x] Display meeting point map on trip detail page

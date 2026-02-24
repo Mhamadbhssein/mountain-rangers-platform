@@ -8,6 +8,7 @@ import {
   boolean,
   decimal,
   json,
+  float,
 } from "drizzle-orm/mysql-core";
 
 /* ============================================================
@@ -46,11 +47,14 @@ export const trips = mysqlTable("trips", {
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   currency: varchar("currency", { length: 8 }).default("USD").notNull(),
   imageUrl: text("imageUrl"),
+  additionalImages: json("additionalImages").$type<string[]>(),
   description: text("description"),
   highlights: json("highlights").$type<string[]>(),
   included: json("included").$type<string[]>(),
   meetingPoint: varchar("meetingPoint", { length: 255 }),
-  totalSeats: int("totalSeats").default(24).notNull(),
+  meetingPointLat: float("meetingPointLat"),
+  meetingPointLng: float("meetingPointLng"),
+  totalSeats: int("totalSeats").default(27).notNull(),
   rating: decimal("rating", { precision: 3, scale: 2 }).default("0"),
   reviewCount: int("reviewCount").default(0),
   elevation: varchar("elevation", { length: 32 }),
@@ -78,6 +82,8 @@ export const bookings = mysqlTable("bookings", {
   referenceCode: varchar("referenceCode", { length: 16 }).notNull().unique(),
   totalPrice: decimal("totalPrice", { precision: 10, scale: 2 }).notNull(),
   paymentMethod: varchar("paymentMethod", { length: 64 }).default("Cash on Bus"),
+  phone: varchar("phone", { length: 32 }),
+  hikingSticks: int("hikingSticks").default(0).notNull(),
   bookedAt: timestamp("bookedAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

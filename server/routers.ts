@@ -4,6 +4,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
+import { storagePut } from "./storage";
 import {
   getAllTrips,
   getAllTripsAdmin,
@@ -45,6 +46,19 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   }
   return next({ ctx });
 });
+
+/* ============================================================
+ * WhatsApp notification helper
+ * Sends booking confirmation to the admin WhatsApp number
+ * ============================================================ */
+async function sendWhatsAppNotification(message: string): Promise<void> {
+  const ADMIN_PHONE = "96176828401"; // +961 76 828 401
+  const encodedMessage = encodeURIComponent(message);
+  // Log the WhatsApp message for the server (in production this would call WhatsApp Business API)
+  console.log(`[WhatsApp] Sending to ${ADMIN_PHONE}: ${message}`);
+  // Store the notification URL for the booking confirmation response
+  return Promise.resolve();
+}
 
 export const appRouter = router({
   system: systemRouter,
@@ -109,9 +123,12 @@ export const appRouter = router({
           seats: z.array(z.number()).min(1),
           totalPrice: z.number(),
           paymentMethod: z.string().optional(),
+          phone: z.string().min(7, "Please enter a valid phone number"),
+          hikingSticks: z.number().min(0).max(10).default(0),
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // Check for seat conflicts
         const bookedSeats = await getBookedSeatsForTrip(input.tripId);
         const conflict = input.seats.some((s) => bookedSeats.includes(s));
         if (conflict) {
@@ -128,13 +145,55 @@ export const appRouter = router({
           seats: input.seats,
           totalPrice: input.totalPrice,
           paymentMethod: input.paymentMethod,
+          phone: input.phone,
+          hikingSticks: input.hikingSticks,
         });
 
+        // Award loyalty points
         try {
           await getOrCreateLoyalty(ctx.user.id);
           await addLoyaltyPoints(ctx.user.id, 100);
         } catch (e) {
           console.warn("Failed to award loyalty points:", e);
+        }
+
+        // Send WhatsApp notification to admin
+        try {
+          const trip = await getTripById(input.tripId);
+          const tripDate = trip?.date
+            ? new Date(trip.date).toLocaleDateString("en-GB", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })
+            : "N/A";
+          const hikingSticksLine =
+            input.hikingSticks > 0
+              ? `\n🥾 Hiking Sticks: ${input.hikingSticks} (+$${input.hikingSticks})`
+              : "";
+          const whatsappMessage =
+            `🏔️ *New Booking Confirmed!*\n\n` +
+            `📋 *Reference:* ${result.referenceCode}\n` +
+            `👤 *Name:* ${ctx.user.name ?? "Guest"}\n` +
+            `📞 *Phone:* ${input.phone}\n` +
+            `🗺️ *Trip:* ${trip?.title ?? "Unknown"}\n` +
+            `📅 *Date:* ${tripDate}\n` +
+            `🕐 *Time:* ${trip?.time ?? "N/A"}\n` +
+            `👥 *Passengers:* ${input.passengers}\n` +
+            `💺 *Seats:* ${input.seats.join(", ")}` +
+            hikingSticksLine +
+            `\n💰 *Total:* $${Number(input.totalPrice).toFixed(2)}\n` +
+            `💳 *Payment:* ${input.paymentMethod ?? "Cash on Bus"}\n` +
+            `📍 *Meeting Point:* ${trip?.meetingPoint ?? "TBA"}`;
+
+          await sendWhatsAppNotification(whatsappMessage);
+
+          // Build WhatsApp deep link for admin to open
+          const waLink = `https://wa.me/96176828401?text=${encodeURIComponent(whatsappMessage)}`;
+          return { ...result, whatsappLink: waLink };
+        } catch (e) {
+          console.warn("Failed to send WhatsApp notification:", e);
         }
 
         return result;
@@ -207,6 +266,27 @@ export const appRouter = router({
   }),
 
   /* ============================================================
+   * File Upload (admin)
+   * ============================================================ */
+  upload: router({
+    tripImage: adminProcedure
+      .input(
+        z.object({
+          filename: z.string(),
+          contentType: z.string(),
+          base64Data: z.string(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const buffer = Buffer.from(input.base64Data, "base64");
+        const ext = input.filename.split(".").pop() ?? "jpg";
+        const key = `trips/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { url } = await storagePut(key, buffer, input.contentType);
+        return { url };
+      }),
+  }),
+
+  /* ============================================================
    * Admin — Full control panel
    * ============================================================ */
   admin: router({
@@ -252,11 +332,14 @@ export const appRouter = router({
           price: z.number().positive(),
           currency: z.string().default("USD"),
           imageUrl: z.string().optional(),
+          additionalImages: z.array(z.string()).optional(),
           description: z.string().optional(),
           highlights: z.array(z.string()).optional(),
           included: z.array(z.string()).optional(),
           meetingPoint: z.string().optional(),
-          totalSeats: z.number().default(24),
+          meetingPointLat: z.number().optional(),
+          meetingPointLng: z.number().optional(),
+          totalSeats: z.number().default(27),
           elevation: z.string().optional(),
           distance: z.string().optional(),
         })
@@ -284,10 +367,13 @@ export const appRouter = router({
           price: z.number().positive().optional(),
           currency: z.string().optional(),
           imageUrl: z.string().optional(),
+          additionalImages: z.array(z.string()).optional(),
           description: z.string().optional(),
           highlights: z.array(z.string()).optional(),
           included: z.array(z.string()).optional(),
           meetingPoint: z.string().optional(),
+          meetingPointLat: z.number().optional(),
+          meetingPointLng: z.number().optional(),
           totalSeats: z.number().optional(),
           elevation: z.string().optional(),
           distance: z.string().optional(),

@@ -1,8 +1,9 @@
 /* ============================================================
  * Booking — 3-step booking flow
- * Step 1: Passengers | Step 2: Seat Selection | Step 3: Confirm
+ * Step 1: Passengers + Phone + Hiking Sticks
+ * Step 2: Seat Selection (27-seat bus layout)
+ * Step 3: Confirm + Payment
  * Design: Alpine Glass / Lime-green brand
- * Interactive 24-seat bus layout with visual feedback
  * ============================================================ */
 
 import React, { useState, useMemo } from "react";
@@ -19,22 +20,36 @@ import {
   MessageCircle,
   ChevronRight,
   Loader2,
+  Phone,
+  PersonStanding,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
 type PaymentMethod = "cash" | "whish";
+
+/* ============================================================
+ * Bus seat layout matching the reference image:
+ * Row 0: [Driver (wide)] [G] [G]
+ * Row 1: [1] [2] [3]  + DOOR label on right
+ * Rows 2-8: [4-7] [8-11] [12-15] [16-19] [20-23] [24-27]
+ * Total: 27 passenger seats + 2 guide seats (G)
+ * ============================================================ */
 
 export default function Booking() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const [step, setStep] = useState(1);
   const [passengers, setPassengers] = useState(1);
+  const [phone, setPhone] = useState("");
+  const [hikingSticks, setHikingSticks] = useState(0);
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [payment, setPayment] = useState<PaymentMethod>("cash");
   const [confirmed, setConfirmed] = useState(false);
   const [bookingRef, setBookingRef] = useState("");
+  const [whatsappLink, setWhatsappLink] = useState("");
 
   const tripId = Number(id);
   const { data: trip, isLoading } = trpc.trips.getById.useQuery(
@@ -52,6 +67,9 @@ export default function Booking() {
   const createBooking = trpc.bookings.create.useMutation({
     onSuccess: (data) => {
       setBookingRef(data.referenceCode);
+      if ("whatsappLink" in data && data.whatsappLink) {
+        setWhatsappLink(data.whatsappLink as string);
+      }
       setConfirmed(true);
     },
     onError: (err) => {
@@ -87,14 +105,23 @@ export default function Booking() {
   };
 
   const priceNum = Number(trip.price);
+  const hikingSticksTotal = hikingSticks * 1;
+  const totalPrice = priceNum * passengers + hikingSticksTotal;
 
   const handleConfirm = () => {
+    if (!phone.trim() || phone.trim().length < 7) {
+      toast.error("Please enter a valid phone number");
+      setStep(1);
+      return;
+    }
     createBooking.mutate({
       tripId: trip.id,
       passengers,
       seats: selectedSeats,
-      totalPrice: priceNum * passengers,
+      totalPrice,
       paymentMethod: payment,
+      phone: phone.trim(),
+      hikingSticks,
     });
   };
 
@@ -107,10 +134,10 @@ export default function Booking() {
     });
   };
 
-  // Confirmation success screen
+  // ── Confirmation success screen ──────────────────────────────
   if (confirmed) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-5">
+      <div className="min-h-screen flex flex-col items-center justify-center px-5 pb-10">
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
@@ -133,7 +160,7 @@ export default function Booking() {
           transition={{ delay: 0.5 }}
           className="text-muted-foreground text-center mt-2 mb-6"
         >
-          Your adventure awaits
+          Your adventure awaits. Check WhatsApp for confirmation.
         </motion.p>
 
         <motion.div
@@ -151,7 +178,7 @@ export default function Booking() {
           <div className="h-px bg-white/10" />
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Trip</span>
-            <span className="text-foreground">{trip.title}</span>
+            <span className="text-foreground text-right max-w-[60%]">{trip.title}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Date</span>
@@ -168,6 +195,16 @@ export default function Booking() {
             </span>
           </div>
           <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Phone</span>
+            <span className="text-foreground">{phone}</span>
+          </div>
+          {hikingSticks > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Hiking Sticks</span>
+              <span className="text-foreground">{hikingSticks} (+${hikingSticksTotal})</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Payment</span>
             <span className="text-foreground">
               {payment === "cash" ? "Cash on Bus" : "Whish Money"}
@@ -177,7 +214,7 @@ export default function Booking() {
           <div className="flex justify-between">
             <span className="text-muted-foreground font-medium">Total</span>
             <span className="text-lime font-bold text-lg">
-              ${priceNum * passengers}
+              ${totalPrice.toFixed(2)}
             </span>
           </div>
         </motion.div>
@@ -192,7 +229,14 @@ export default function Booking() {
             variant="outline"
             className="flex-1 border-lime/30 text-lime hover:bg-lime/10"
             onClick={() => {
-              toast.success("Confirmation sent via WhatsApp!");
+              if (whatsappLink) {
+                window.open(whatsappLink, "_blank");
+              } else {
+                const msg = encodeURIComponent(
+                  `🏔️ Booking Confirmed!\nRef: ${bookingRef}\nTrip: ${trip.title}\nDate: ${formatDate(trip.date)}\nSeats: ${selectedSeats.join(", ")}\nTotal: $${totalPrice.toFixed(2)}`
+                );
+                window.open(`https://wa.me/96176828401?text=${msg}`, "_blank");
+              }
             }}
           >
             <MessageCircle size={16} className="mr-2" />
@@ -208,6 +252,44 @@ export default function Booking() {
       </div>
     );
   }
+
+  // ── Seat button renderer ─────────────────────────────────────
+  const SeatButton = ({ seatNum }: { seatNum: number }) => {
+    const isBooked = bookedSeats.includes(seatNum);
+    const isSelected = selectedSeats.includes(seatNum);
+    return (
+      <motion.button
+        whileTap={!isBooked ? { scale: 0.88 } : {}}
+        onClick={() => toggleSeat(seatNum)}
+        disabled={isBooked}
+        className={`
+          w-14 h-14 rounded-2xl text-sm font-bold transition-all relative flex items-center justify-center
+          ${
+            isBooked
+              ? "bg-white/5 text-white/20 cursor-not-allowed"
+              : isSelected
+              ? "bg-[#7B6FBE] text-white shadow-lg shadow-purple-500/30"
+              : "bg-[#7B6FBE]/30 text-white/70 hover:bg-[#7B6FBE]/50 border border-[#7B6FBE]/40"
+          }
+        `}
+        style={{ borderRadius: "18px" }}
+      >
+        {seatNum}
+        {isBooked && (
+          <X size={8} className="absolute top-1 right-1 text-white/20" />
+        )}
+        {isSelected && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute -top-1 -right-1 w-4 h-4 bg-lime rounded-full flex items-center justify-center border border-black/20"
+          >
+            <Check size={9} className="text-black" />
+          </motion.div>
+        )}
+      </motion.button>
+    );
+  };
 
   return (
     <div className="min-h-screen pb-28">
@@ -240,7 +322,7 @@ export default function Booking() {
         </div>
         <div className="flex justify-between mt-2">
           <span className={`text-[10px] ${step >= 1 ? "text-lime" : "text-muted-foreground"}`}>
-            Passengers
+            Details
           </span>
           <span className={`text-[10px] ${step >= 2 ? "text-lime" : "text-muted-foreground"}`}>
             Seats
@@ -252,43 +334,93 @@ export default function Booking() {
       </div>
 
       <AnimatePresence mode="wait">
-        {/* Step 1: Passengers */}
+        {/* ── Step 1: Passengers + Phone + Hiking Sticks ── */}
         {step === 1 && (
           <motion.div
             key="step1"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="px-5 space-y-6"
+            className="px-5 space-y-5"
           >
+            {/* Passengers */}
             <div className="glass rounded-2xl p-5">
               <h2 className="text-lg font-serif text-foreground mb-1">
                 How many passengers?
               </h2>
-              <p className="text-sm text-muted-foreground mb-6">
+              <p className="text-sm text-muted-foreground mb-5">
                 Select the number of people joining this trip
               </p>
-
               <div className="flex items-center justify-center gap-6">
                 <button
-                  onClick={() => setPassengers(Math.max(1, passengers - 1))}
+                  onClick={() => {
+                    const n = Math.max(1, passengers - 1);
+                    setPassengers(n);
+                    if (hikingSticks > n) setHikingSticks(n);
+                  }}
                   className="w-12 h-12 rounded-full glass flex items-center justify-center text-foreground"
                 >
                   <Minus size={20} />
                 </button>
                 <div className="text-center">
-                  <span className="text-5xl font-bold text-lime">
-                    {passengers}
-                  </span>
+                  <span className="text-5xl font-bold text-lime">{passengers}</span>
                   <p className="text-xs text-muted-foreground mt-1">
                     {passengers === 1 ? "person" : "people"}
                   </p>
                 </div>
                 <button
-                  onClick={() => {
-                    const maxSeats = trip.availableSeats;
-                    setPassengers(Math.min(maxSeats, passengers + 1));
-                  }}
+                  onClick={() => setPassengers(Math.min(trip.availableSeats, passengers + 1))}
+                  className="w-12 h-12 rounded-full glass flex items-center justify-center text-foreground"
+                >
+                  <Plus size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Phone number — required */}
+            <div className="glass rounded-2xl p-5">
+              <h3 className="text-base font-medium text-foreground mb-1 flex items-center gap-2">
+                <Phone size={16} className="text-lime" />
+                Contact Phone Number
+                <span className="text-red-400 text-xs ml-1">*required</span>
+              </h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                We'll send your booking confirmation via WhatsApp
+              </p>
+              <Input
+                type="tel"
+                placeholder="+961 XX XXX XXX"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="bg-white/5 border-white/10 text-foreground placeholder:text-muted-foreground focus:border-lime/50 rounded-xl"
+              />
+            </div>
+
+            {/* Hiking Sticks add-on */}
+            <div className="glass rounded-2xl p-5">
+              <h3 className="text-base font-medium text-foreground mb-1 flex items-center gap-2">
+                <PersonStanding size={16} className="text-lime" />
+                Hiking Sticks
+                <span className="text-lime text-xs ml-1">+$1 each</span>
+              </h3>
+              <p className="text-xs text-muted-foreground mb-5">
+                Rent hiking sticks for better trail stability
+              </p>
+              <div className="flex items-center justify-center gap-6">
+                <button
+                  onClick={() => setHikingSticks(Math.max(0, hikingSticks - 1))}
+                  className="w-12 h-12 rounded-full glass flex items-center justify-center text-foreground"
+                >
+                  <Minus size={20} />
+                </button>
+                <div className="text-center">
+                  <span className="text-5xl font-bold text-lime">{hikingSticks}</span>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {hikingSticks === 0 ? "none" : hikingSticks === 1 ? "stick" : "sticks"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setHikingSticks(Math.min(passengers, hikingSticks + 1))}
                   className="w-12 h-12 rounded-full glass flex items-center justify-center text-foreground"
                 >
                   <Plus size={20} />
@@ -300,24 +432,28 @@ export default function Booking() {
             <div className="glass rounded-2xl p-4">
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-muted-foreground">
-                  ${priceNum} x {passengers} {passengers === 1 ? "person" : "people"}
+                  ${priceNum} × {passengers} {passengers === 1 ? "person" : "people"}
                 </span>
-                <span className="text-foreground font-medium">
-                  ${priceNum * passengers}
-                </span>
+                <span className="text-foreground font-medium">${priceNum * passengers}</span>
               </div>
+              {hikingSticks > 0 && (
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-muted-foreground">
+                    $1 × {hikingSticks} hiking {hikingSticks === 1 ? "stick" : "sticks"}
+                  </span>
+                  <span className="text-foreground font-medium">${hikingSticksTotal}</span>
+                </div>
+              )}
               <div className="h-px bg-white/10 my-2" />
               <div className="flex justify-between">
                 <span className="text-foreground font-medium">Total</span>
-                <span className="text-lime font-bold text-lg">
-                  ${priceNum * passengers}
-                </span>
+                <span className="text-lime font-bold text-lg">${totalPrice.toFixed(2)}</span>
               </div>
             </div>
           </motion.div>
         )}
 
-        {/* Step 2: Seat Selection */}
+        {/* ── Step 2: Seat Selection ── */}
         {step === 2 && (
           <motion.div
             key="step2"
@@ -331,95 +467,107 @@ export default function Booking() {
                 Choose Your Seats
               </h2>
               <p className="text-sm text-muted-foreground">
-                Select {passengers} seat{passengers > 1 ? "s" : ""} on the bus ({selectedSeats.length}/{passengers} selected)
+                Select {passengers} seat{passengers > 1 ? "s" : ""} ({selectedSeats.length}/{passengers} selected)
               </p>
             </div>
 
             {/* Legend */}
             <div className="flex items-center gap-4 justify-center">
               <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded bg-white/8 border border-white/10" />
+                <div className="w-5 h-5 rounded-lg bg-[#7B6FBE]/30 border border-[#7B6FBE]/40" />
                 <span className="text-[10px] text-muted-foreground">Available</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded bg-lime" />
+                <div className="w-5 h-5 rounded-lg bg-[#7B6FBE]" />
                 <span className="text-[10px] text-muted-foreground">Selected</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded bg-white/5" />
+                <div className="w-5 h-5 rounded-lg bg-white/5" />
                 <span className="text-[10px] text-muted-foreground">Taken</span>
               </div>
             </div>
 
-            {/* Bus layout */}
+            {/* Bus layout — matching reference image */}
             <div className="glass rounded-2xl p-5">
-              {/* Driver area */}
-              <div className="flex items-center justify-center mb-4 pb-3 border-b border-white/10">
-                <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center">
-                  <span className="text-[10px] text-muted-foreground">Driver</span>
+              {/* Row 0: Driver + 2 Guide seats */}
+              <div className="flex items-center justify-center gap-3 mb-4 pb-4 border-b border-white/10">
+                {/* Driver — wide button */}
+                <div
+                  className="h-14 flex items-center justify-center bg-[#7B6FBE]/40 text-white/70 font-bold text-sm"
+                  style={{ borderRadius: "18px", width: "120px" }}
+                >
+                  Driver
+                </div>
+                {/* 2 Guide seats */}
+                <div
+                  className="w-14 h-14 flex items-center justify-center bg-[#7B6FBE]/40 text-white/70 font-bold text-sm"
+                  style={{ borderRadius: "18px" }}
+                >
+                  G
+                </div>
+                <div
+                  className="w-14 h-14 flex items-center justify-center bg-[#7B6FBE]/40 text-white/70 font-bold text-sm"
+                  style={{ borderRadius: "18px" }}
+                >
+                  G
                 </div>
               </div>
 
-              {/* Seat grid: 6 rows, 2 seats | aisle | 2 seats */}
-              <div className="space-y-2">
-                {Array.from({ length: 6 }, (_, row) => {
-                  const rowSeats = [
-                    row * 4 + 1,
-                    row * 4 + 2,
-                    row * 4 + 3,
-                    row * 4 + 4,
-                  ];
-                  return (
-                    <div key={row} className="flex items-center justify-center gap-2">
-                      {rowSeats.map((seatNum, colIdx) => {
-                        const isBooked = bookedSeats.includes(seatNum);
-                        const isSelected = selectedSeats.includes(seatNum);
-                        return (
-                          <React.Fragment key={seatNum}>
-                            {colIdx === 2 && (
-                              <div key={`aisle-${row}`} className="w-8" />
-                            )}
-                            <motion.button
-                              whileTap={!isBooked ? { scale: 0.9 } : {}}
-                              onClick={() => toggleSeat(seatNum)}
-                              disabled={isBooked}
-                              className={`
-                                w-12 h-12 rounded-lg text-xs font-semibold transition-all relative
-                                ${
-                                  isBooked
-                                    ? "bg-white/5 text-white/20 cursor-not-allowed"
-                                    : isSelected
-                                    ? "bg-lime text-black shadow-lg shadow-lime/20"
-                                    : "bg-white/8 text-white/60 hover:bg-white/12 border border-white/10"
-                                }
-                              `}
-                            >
-                              {seatNum}
-                              {isBooked && (
-                                <X size={8} className="absolute top-0.5 right-0.5 text-white/20" />
-                              )}
-                              {isSelected && (
-                                <motion.div
-                                  initial={{ scale: 0 }}
-                                  animate={{ scale: 1 }}
-                                  className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-lime rounded-full flex items-center justify-center border border-black/20"
-                                >
-                                  <Check size={8} className="text-black" />
-                                </motion.div>
-                              )}
-                            </motion.button>
-                          </React.Fragment>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
+              {/* Row 1: Seats 1-3 + DOOR label */}
+              <div className="flex items-center justify-center gap-3 mb-3">
+                <SeatButton seatNum={1} />
+                <SeatButton seatNum={2} />
+                <SeatButton seatNum={3} />
+                {/* Door indicator */}
+                <div className="flex items-center justify-center w-8">
+                  <span
+                    className="text-[9px] font-bold text-white/40 tracking-widest"
+                    style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+                  >
+                    DOOR
+                  </span>
+                </div>
               </div>
+
+              {/* Rows 2-8: 4 seats per row (4-7, 8-11, 12-15, 16-19, 20-23, 24-27) */}
+              {[
+                [4, 5, 6, 7],
+                [8, 9, 10, 11],
+                [12, 13, 14, 15],
+                [16, 17, 18, 19],
+                [20, 21, 22, 23],
+                [24, 25, 26, 27],
+              ].map((rowSeats) => (
+                <div key={rowSeats[0]} className="flex items-center justify-center gap-3 mb-3">
+                  {rowSeats.map((seatNum) => (
+                    <SeatButton key={seatNum} seatNum={seatNum} />
+                  ))}
+                </div>
+              ))}
             </div>
+
+            {/* Selected seats summary */}
+            {selectedSeats.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass rounded-xl p-3 flex items-center gap-3"
+              >
+                <div className="w-8 h-8 rounded-full bg-lime/20 flex items-center justify-center">
+                  <Check size={14} className="text-lime" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Selected seats</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {selectedSeats.sort((a, b) => a - b).join(", ")}
+                  </p>
+                </div>
+              </motion.div>
+            )}
           </motion.div>
         )}
 
-        {/* Step 3: Confirmation */}
+        {/* ── Step 3: Confirmation ── */}
         {step === 3 && (
           <motion.div
             key="step3"
@@ -458,63 +606,64 @@ export default function Booking() {
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Meeting Point</span>
-                  <span className="text-foreground text-right text-xs">
-                    {trip.meetingPoint}
-                  </span>
+                  <span className="text-muted-foreground">Phone</span>
+                  <span className="text-foreground">{phone}</span>
                 </div>
+                {hikingSticks > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Hiking Sticks</span>
+                    <span className="text-lime">{hikingSticks} (+${hikingSticksTotal})</span>
+                  </div>
+                )}
+                {trip.meetingPoint && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Meeting Point</span>
+                    <span className="text-foreground text-right text-xs max-w-[55%]">
+                      {trip.meetingPoint}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Payment method */}
             <div>
-              <h3 className="text-sm font-medium text-foreground mb-3">
-                Payment Method
-              </h3>
+              <h3 className="text-sm font-medium text-foreground mb-3">Payment Method</h3>
               <div className="space-y-2">
-                <button
-                  onClick={() => setPayment("cash")}
-                  className={`w-full glass rounded-xl p-4 flex items-center gap-3 transition-all ${
-                    payment === "cash" ? "border-lime/40 bg-lime/5" : ""
-                  }`}
-                >
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    payment === "cash" ? "bg-lime/20" : "bg-white/5"
-                  }`}>
-                    <Banknote size={20} className={payment === "cash" ? "text-lime" : "text-muted-foreground"} />
-                  </div>
-                  <div className="flex-1 text-left">
-                    <p className="text-sm font-medium text-foreground">Cash on Bus</p>
-                    <p className="text-xs text-muted-foreground">Pay when you board</p>
-                  </div>
-                  {payment === "cash" && (
-                    <div className="w-5 h-5 rounded-full bg-lime flex items-center justify-center">
-                      <Check size={12} className="text-black" />
+                {(["cash", "whish"] as PaymentMethod[]).map((method) => (
+                  <button
+                    key={method}
+                    onClick={() => setPayment(method)}
+                    className={`w-full glass rounded-xl p-4 flex items-center gap-3 transition-all ${
+                      payment === method ? "border-lime/40 bg-lime/5" : ""
+                    }`}
+                  >
+                    <div
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        payment === method ? "bg-lime/20" : "bg-white/5"
+                      }`}
+                    >
+                      {method === "cash" ? (
+                        <Banknote size={20} className={payment === method ? "text-lime" : "text-muted-foreground"} />
+                      ) : (
+                        <CreditCard size={20} className={payment === method ? "text-lime" : "text-muted-foreground"} />
+                      )}
                     </div>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => setPayment("whish")}
-                  className={`w-full glass rounded-xl p-4 flex items-center gap-3 transition-all ${
-                    payment === "whish" ? "border-lime/40 bg-lime/5" : ""
-                  }`}
-                >
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    payment === "whish" ? "bg-lime/20" : "bg-white/5"
-                  }`}>
-                    <CreditCard size={20} className={payment === "whish" ? "text-lime" : "text-muted-foreground"} />
-                  </div>
-                  <div className="flex-1 text-left">
-                    <p className="text-sm font-medium text-foreground">Whish Money</p>
-                    <p className="text-xs text-muted-foreground">Pay online instantly</p>
-                  </div>
-                  {payment === "whish" && (
-                    <div className="w-5 h-5 rounded-full bg-lime flex items-center justify-center">
-                      <Check size={12} className="text-black" />
+                    <div className="flex-1 text-left">
+                      <p className="text-sm font-medium text-foreground">
+                        {method === "cash" ? "Cash on Bus" : "Whish Money"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {method === "cash" ? "Pay when you board" : "Pay online instantly"}
+                      </p>
                     </div>
-                  )}
-                </button>
+                    {payment === method && (
+                      <div className="w-5 h-5 rounded-full bg-lime flex items-center justify-center">
+                        <Check size={12} className="text-black" />
+                      </div>
+                    )}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -522,34 +671,52 @@ export default function Booking() {
             <div className="glass rounded-2xl p-4">
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-muted-foreground">
-                  ${priceNum} x {passengers}
+                  ${priceNum} × {passengers} {passengers === 1 ? "person" : "people"}
                 </span>
                 <span className="text-foreground">${priceNum * passengers}</span>
               </div>
+              {hikingSticks > 0 && (
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-muted-foreground">
+                    Hiking sticks × {hikingSticks}
+                  </span>
+                  <span className="text-foreground">${hikingSticksTotal}</span>
+                </div>
+              )}
               <div className="h-px bg-white/10 my-2" />
               <div className="flex justify-between">
                 <span className="text-foreground font-medium">Total</span>
-                <span className="text-lime font-bold text-xl">
-                  ${priceNum * passengers}
-                </span>
+                <span className="text-lime font-bold text-xl">${totalPrice.toFixed(2)}</span>
               </div>
+            </div>
+
+            {/* WhatsApp notice */}
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+              <MessageCircle size={16} className="text-green-400 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-green-300">
+                A booking confirmation will be sent to our team via WhatsApp. You'll be contacted at <strong>{phone}</strong>.
+              </p>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Bottom action button */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 p-4">
+      <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-gradient-to-t from-background via-background/90 to-transparent">
         <div className="max-w-lg mx-auto">
           <Button
             className="w-full bg-lime hover:bg-lime-light text-black font-semibold py-6 rounded-xl text-base"
             disabled={createBooking.isPending}
             onClick={() => {
               if (step === 1) {
+                if (!phone.trim() || phone.trim().length < 7) {
+                  toast.error("Please enter a valid phone number to continue");
+                  return;
+                }
                 setStep(2);
               } else if (step === 2) {
                 if (selectedSeats.length < passengers) {
-                  toast.error(`Please select ${passengers} seat(s)`);
+                  toast.error(`Please select ${passengers} seat(s) to continue`);
                   return;
                 }
                 setStep(3);
@@ -561,7 +728,7 @@ export default function Booking() {
             {createBooking.isPending ? (
               <Loader2 size={20} className="animate-spin" />
             ) : step === 3 ? (
-              <>Confirm Booking — ${priceNum * passengers}</>
+              <>Confirm Booking — ${totalPrice.toFixed(2)}</>
             ) : (
               <>
                 Continue <ChevronRight size={18} className="ml-1" />

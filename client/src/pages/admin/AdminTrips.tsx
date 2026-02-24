@@ -1,6 +1,6 @@
 import AdminLayout from "@/components/AdminLayout";
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,9 +36,14 @@ import {
   DollarSign,
   MapPin,
   Calendar,
+  Upload,
+  X,
+  ImagePlus,
+  Map,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { MapView } from "@/components/Map";
 
 type Difficulty = "Easy" | "Moderate" | "Hard" | "Expert";
 
@@ -59,10 +64,13 @@ type TripFormData = {
   price: string;
   currency: string;
   imageUrl: string;
+  additionalImages: string[];
   description: string;
   highlights: string;
   included: string;
   meetingPoint: string;
+  meetingPointLat: number | null;
+  meetingPointLng: number | null;
   totalSeats: string;
   elevation: string;
   distance: string;
@@ -78,11 +86,14 @@ const emptyForm: TripFormData = {
   price: "",
   currency: "USD",
   imageUrl: "",
+  additionalImages: [],
   description: "",
   highlights: "",
   included: "",
   meetingPoint: "",
-  totalSeats: "24",
+  meetingPointLat: null,
+  meetingPointLng: null,
+  totalSeats: "27",
   elevation: "",
   distance: "",
 };
@@ -94,6 +105,15 @@ export default function AdminTrips() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<TripFormData>(emptyForm);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [uploadingMain, setUploadingMain] = useState(false);
+  const [uploadingAdditional, setUploadingAdditional] = useState(false);
+  const mainImageInputRef = useRef<HTMLInputElement>(null);
+  const additionalImageInputRef = useRef<HTMLInputElement>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
+
+  const uploadMutation = trpc.upload.tripImage.useMutation();
 
   const createMutation = trpc.admin.createTrip.useMutation({
     onSuccess: () => {
@@ -119,7 +139,7 @@ export default function AdminTrips() {
   const deleteMutation = trpc.admin.deleteTrip.useMutation({
     onSuccess: () => {
       utils.admin.allTrips.invalidate();
-      toast.success("Trip deactivated.");
+      toast.success("Trip deleted.");
       setDeleteConfirm(null);
     },
     onError: (e) => toast.error(e.message),
@@ -145,16 +165,102 @@ export default function AdminTrips() {
       price: String(parseFloat(String(trip.price))),
       currency: trip.currency,
       imageUrl: trip.imageUrl ?? "",
+      additionalImages: (trip.additionalImages as string[] | null) ?? [],
       description: trip.description ?? "",
       highlights: (trip.highlights ?? []).join("\n"),
       included: (trip.included ?? []).join("\n"),
       meetingPoint: trip.meetingPoint ?? "",
+      meetingPointLat: (trip.meetingPointLat as number | null) ?? null,
+      meetingPointLng: (trip.meetingPointLng as number | null) ?? null,
       totalSeats: String(trip.totalSeats),
       elevation: trip.elevation ?? "",
       distance: trip.distance ?? "",
     });
     setShowForm(true);
   };
+
+  const handleUploadMainImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingMain(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const { url } = await uploadMutation.mutateAsync({
+        filename: file.name,
+        contentType: file.type,
+        base64Data: base64,
+      });
+      setForm((f) => ({ ...f, imageUrl: url }));
+      toast.success("Main image uploaded!");
+    } catch {
+      toast.error("Failed to upload image");
+    } finally {
+      setUploadingMain(false);
+      if (mainImageInputRef.current) mainImageInputRef.current.value = "";
+    }
+  };
+
+  const handleUploadAdditionalImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    setUploadingAdditional(true);
+    try {
+      const urls: string[] = [];
+      for (const file of files) {
+        const base64 = await fileToBase64(file);
+        const { url } = await uploadMutation.mutateAsync({
+          filename: file.name,
+          contentType: file.type,
+          base64Data: base64,
+        });
+        urls.push(url);
+      }
+      setForm((f) => ({ ...f, additionalImages: [...f.additionalImages, ...urls] }));
+      toast.success(`${urls.length} image(s) uploaded!`);
+    } catch {
+      toast.error("Failed to upload image(s)");
+    } finally {
+      setUploadingAdditional(false);
+      if (additionalImageInputRef.current) additionalImageInputRef.current.value = "";
+    }
+  };
+
+  const removeAdditionalImage = (idx: number) => {
+    setForm((f) => ({
+      ...f,
+      additionalImages: f.additionalImages.filter((_, i) => i !== idx),
+    }));
+  };
+
+  const handleMapReady = useCallback((map: google.maps.Map) => {
+    mapRef.current = map;
+    // If there's already a pinned location, center on it
+    if (form.meetingPointLat && form.meetingPointLng) {
+      map.setCenter({ lat: form.meetingPointLat, lng: form.meetingPointLng });
+      map.setZoom(14);
+      markerRef.current = new google.maps.marker.AdvancedMarkerElement({
+        map,
+        position: { lat: form.meetingPointLat, lng: form.meetingPointLng },
+        title: "Meeting Point",
+      });
+    }
+    // Click to pin
+    map.addListener("click", (e: google.maps.MapMouseEvent) => {
+      if (!e.latLng) return;
+      const lat = e.latLng.lat();
+      const lng = e.latLng.lng();
+      // Remove old marker
+      if (markerRef.current) {
+        markerRef.current.map = null;
+      }
+      markerRef.current = new google.maps.marker.AdvancedMarkerElement({
+        map,
+        position: { lat, lng },
+        title: "Meeting Point",
+      });
+      setForm((f) => ({ ...f, meetingPointLat: lat, meetingPointLng: lng }));
+    });
+  }, [form.meetingPointLat, form.meetingPointLng]);
 
   const handleSubmit = () => {
     const payload = {
@@ -167,11 +273,14 @@ export default function AdminTrips() {
       price: parseFloat(form.price),
       currency: form.currency,
       imageUrl: form.imageUrl || undefined,
+      additionalImages: form.additionalImages.length > 0 ? form.additionalImages : undefined,
       description: form.description || undefined,
       highlights: form.highlights ? form.highlights.split("\n").filter(Boolean) : undefined,
       included: form.included ? form.included.split("\n").filter(Boolean) : undefined,
       meetingPoint: form.meetingPoint || undefined,
-      totalSeats: parseInt(form.totalSeats) || 24,
+      meetingPointLat: form.meetingPointLat ?? undefined,
+      meetingPointLng: form.meetingPointLng ?? undefined,
+      totalSeats: parseInt(form.totalSeats) || 27,
       elevation: form.elevation || undefined,
       distance: form.distance || undefined,
     };
@@ -264,6 +373,12 @@ export default function AdminTrips() {
                             <DollarSign className="w-3 h-3" />
                             {parseFloat(String(trip.price)).toFixed(0)} {trip.currency}
                           </span>
+                          {(trip.meetingPointLat || trip.meetingPointLng) && (
+                            <span className="flex items-center gap-1 text-blue-400 text-xs">
+                              <Map className="w-3 h-3" />
+                              Map pinned
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -405,6 +520,38 @@ export default function AdminTrips() {
               />
             </div>
 
+            {/* Map Pin for Meeting Point */}
+            <div className="col-span-2 space-y-1.5">
+              <label className="text-xs text-gray-400 font-medium">Meeting Point on Map</label>
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowMapPicker(true)}
+                  className="border-[#1a2a1a] text-gray-300 hover:bg-white/5 hover:text-white gap-2"
+                >
+                  <MapPin className="w-4 h-4 text-lime-400" />
+                  {form.meetingPointLat && form.meetingPointLng
+                    ? "Update Pin Location"
+                    : "Pin on Map"}
+                </Button>
+                {form.meetingPointLat && form.meetingPointLng && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-lime-400 bg-lime-500/10 px-2 py-1 rounded-full">
+                      📍 {form.meetingPointLat.toFixed(4)}, {form.meetingPointLng.toFixed(4)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, meetingPointLat: null, meetingPointLng: null }))}
+                      className="text-gray-500 hover:text-red-400"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Date */}
             <div className="space-y-1.5">
               <label className="text-xs text-gray-400 font-medium">Date *</label>
@@ -477,7 +624,7 @@ export default function AdminTrips() {
                 type="number"
                 value={form.totalSeats}
                 onChange={(e) => setForm({ ...form, totalSeats: e.target.value })}
-                placeholder="24"
+                placeholder="27"
                 className="bg-white/5 border-[#1a2a1a] text-white placeholder:text-gray-600"
               />
             </div>
@@ -504,14 +651,112 @@ export default function AdminTrips() {
               />
             </div>
 
-            {/* Image URL */}
+            {/* Main Image Upload */}
             <div className="col-span-2 space-y-1.5">
-              <label className="text-xs text-gray-400 font-medium">Image URL</label>
-              <Input
-                value={form.imageUrl}
-                onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                placeholder="https://..."
-                className="bg-white/5 border-[#1a2a1a] text-white placeholder:text-gray-600"
+              <label className="text-xs text-gray-400 font-medium">Main Photo</label>
+              <div className="flex items-start gap-3">
+                {form.imageUrl ? (
+                  <div className="relative">
+                    <img
+                      src={form.imageUrl}
+                      alt="Main"
+                      className="w-24 h-24 rounded-lg object-cover border border-[#1a2a1a]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, imageUrl: "" }))}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
+                    >
+                      <X className="w-3 h-3 text-white" />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => mainImageInputRef.current?.click()}
+                    className="w-24 h-24 rounded-lg border-2 border-dashed border-[#1a2a1a] flex flex-col items-center justify-center cursor-pointer hover:border-lime-500/50 transition-colors"
+                  >
+                    {uploadingMain ? (
+                      <div className="w-5 h-5 border-2 border-lime-400 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Upload className="w-5 h-5 text-gray-500 mb-1" />
+                        <span className="text-xs text-gray-500">Upload</span>
+                      </>
+                    )}
+                  </div>
+                )}
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500">
+                    Upload the main cover photo for this trip. Recommended: 1200×800px, JPG or PNG.
+                  </p>
+                  {!form.imageUrl && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => mainImageInputRef.current?.click()}
+                      disabled={uploadingMain}
+                      className="mt-2 border-[#1a2a1a] text-gray-400 hover:bg-white/5 hover:text-white gap-2 text-xs"
+                    >
+                      <ImagePlus className="w-3.5 h-3.5" />
+                      Choose File
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <input
+                ref={mainImageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleUploadMainImage}
+              />
+            </div>
+
+            {/* Additional Images Upload */}
+            <div className="col-span-2 space-y-1.5">
+              <label className="text-xs text-gray-400 font-medium">Additional Photos</label>
+              <div className="flex flex-wrap gap-2">
+                {form.additionalImages.map((url, idx) => (
+                  <div key={idx} className="relative">
+                    <img
+                      src={url}
+                      alt={`Additional ${idx + 1}`}
+                      className="w-20 h-20 rounded-lg object-cover border border-[#1a2a1a]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeAdditionalImage(idx)}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
+                    >
+                      <X className="w-3 h-3 text-white" />
+                    </button>
+                  </div>
+                ))}
+                <div
+                  onClick={() => additionalImageInputRef.current?.click()}
+                  className="w-20 h-20 rounded-lg border-2 border-dashed border-[#1a2a1a] flex flex-col items-center justify-center cursor-pointer hover:border-lime-500/50 transition-colors"
+                >
+                  {uploadingAdditional ? (
+                    <div className="w-4 h-4 border-2 border-lime-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 text-gray-500" />
+                      <span className="text-xs text-gray-500 mt-0.5">Add</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                Add up to 10 additional photos shown in the trip gallery.
+              </p>
+              <input
+                ref={additionalImageInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handleUploadAdditionalImage}
               />
             </div>
 
@@ -535,7 +780,7 @@ export default function AdminTrips() {
               <Textarea
                 value={form.highlights}
                 onChange={(e) => setForm({ ...form, highlights: e.target.value })}
-                placeholder={"Summit views&#10;Cedar forest&#10;Professional guides"}
+                placeholder={"Summit views\nCedar forest\nProfessional guides"}
                 rows={3}
                 className="bg-white/5 border-[#1a2a1a] text-white placeholder:text-gray-600 resize-none"
               />
@@ -549,7 +794,7 @@ export default function AdminTrips() {
               <Textarea
                 value={form.included}
                 onChange={(e) => setForm({ ...form, included: e.target.value })}
-                placeholder={"Transportation&#10;Guide&#10;First aid kit"}
+                placeholder={"Transportation\nGuide\nFirst aid kit"}
                 rows={3}
                 className="bg-white/5 border-[#1a2a1a] text-white placeholder:text-gray-600 resize-none"
               />
@@ -570,6 +815,46 @@ export default function AdminTrips() {
               className="bg-lime-500 hover:bg-lime-400 text-black font-semibold"
             >
               {isSubmitting ? "Saving..." : editingId !== null ? "Update Trip" : "Create Trip"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Map Picker Dialog */}
+      <Dialog open={showMapPicker} onOpenChange={setShowMapPicker}>
+        <DialogContent className="bg-[#0d150d] border-[#1a2a1a] text-white max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-lime-400" />
+              Pin Meeting Point on Map
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-gray-400 mb-2">
+            Click anywhere on the map to set the meeting point location. The marker will appear where you click.
+          </p>
+          <div className="rounded-xl overflow-hidden border border-[#1a2a1a]">
+            <MapView
+              className="h-[400px]"
+              initialCenter={
+                form.meetingPointLat && form.meetingPointLng
+                  ? { lat: form.meetingPointLat, lng: form.meetingPointLng }
+                  : { lat: 33.8886, lng: 35.4955 } // Beirut, Lebanon
+              }
+              initialZoom={form.meetingPointLat ? 14 : 9}
+              onMapReady={handleMapReady}
+            />
+          </div>
+          {form.meetingPointLat && form.meetingPointLng && (
+            <p className="text-xs text-lime-400 mt-2">
+              📍 Pinned at: {form.meetingPointLat.toFixed(5)}, {form.meetingPointLng.toFixed(5)}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              onClick={() => setShowMapPicker(false)}
+              className="bg-lime-500 hover:bg-lime-400 text-black font-semibold"
+            >
+              Confirm Location
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -604,4 +889,18 @@ export default function AdminTrips() {
       </Dialog>
     </AdminLayout>
   );
+}
+
+/* Helper: convert File to base64 string */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Strip data URL prefix: "data:image/jpeg;base64,..."
+      resolve(result.split(",")[1] ?? "");
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }

@@ -160,6 +160,8 @@ describe("bookings.create", () => {
       seats: [5, 6],
       totalPrice: 90,
       paymentMethod: "Cash on Bus",
+      phone: "+96176828401",
+      hikingSticks: 0,
     });
 
     expect(result.referenceCode).toBe("MR-ABC12345");
@@ -185,6 +187,8 @@ describe("bookings.create", () => {
         passengers: 2,
         seats: [5, 6],
         totalPrice: 90,
+        phone: "+96176828401",
+        hikingSticks: 0,
       })
     ).rejects.toThrow("Some selected seats are already booked");
   });

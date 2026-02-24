@@ -19,10 +19,13 @@ import {
   Ruler,
   TrendingUp,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
+import { MapView } from "@/components/Map";
 
 const DIFFICULTY_COLORS: Record<string, string> = {
   Easy: "bg-green-500/20 text-green-400 border-green-500/30",
@@ -35,12 +38,25 @@ export default function TripDetail() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const [liked, setLiked] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
 
   const tripId = Number(id);
   const { data: trip, isLoading } = trpc.trips.getById.useQuery(
     { id: tripId },
     { enabled: !isNaN(tripId) }
   );
+
+  const handleMapReady = useCallback((map: google.maps.Map) => {
+    if (!trip?.meetingPointLat || !trip?.meetingPointLng) return;
+    const pos = { lat: Number(trip.meetingPointLat), lng: Number(trip.meetingPointLng) };
+    map.setCenter(pos);
+    map.setZoom(14);
+    new google.maps.marker.AdvancedMarkerElement({
+      map,
+      position: pos,
+      title: trip.meetingPoint ?? "Meeting Point",
+    });
+  }, [trip]);
 
   if (isLoading) {
     return (
@@ -62,15 +78,9 @@ export default function TripDetail() {
   const fillPercent = ((trip.totalSeats - seatsLeft) / trip.totalSeats) * 100;
   const highlights: string[] = Array.isArray(trip.highlights) ? trip.highlights : [];
   const included: string[] = Array.isArray(trip.included) ? trip.included : [];
-
-  const formatDate = (date: Date | string) => {
-    const d = new Date(date);
-    return d.toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
+  const additionalImages: string[] = Array.isArray(trip.additionalImages) ? trip.additionalImages : [];
+  const allImages = [trip.imageUrl, ...additionalImages].filter(Boolean) as string[];
+  const hasMeetingPointMap = trip.meetingPointLat && trip.meetingPointLng;
 
   const shortDate = (date: Date | string) => {
     const d = new Date(date);
@@ -78,13 +88,13 @@ export default function TripDetail() {
   };
 
   return (
-    <div className="min-h-screen pb-24">
+    <div className="min-h-screen pb-28">
       {/* Hero Image */}
       <section className="relative h-[55vh] min-h-[380px]">
         <img
-          src={trip.imageUrl ?? ""}
+          src={allImages[galleryIndex] ?? ""}
           alt={trip.title}
-          className="absolute inset-0 w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover transition-all duration-500"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-background" />
 
@@ -120,6 +130,36 @@ export default function TripDetail() {
             {trip.difficulty}
           </span>
         </div>
+
+        {/* Gallery navigation arrows (only if multiple images) */}
+        {allImages.length > 1 && (
+          <>
+            <button
+              onClick={() => setGalleryIndex((i) => (i - 1 + allImages.length) % allImages.length)}
+              className="absolute left-3 top-1/2 -translate-y-1/2 glass rounded-full p-2"
+            >
+              <ChevronLeft size={18} className="text-white" />
+            </button>
+            <button
+              onClick={() => setGalleryIndex((i) => (i + 1) % allImages.length)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 glass rounded-full p-2"
+            >
+              <ChevronRight size={18} className="text-white" />
+            </button>
+            {/* Dots */}
+            <div className="absolute bottom-6 right-5 flex gap-1.5">
+              {allImages.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setGalleryIndex(i)}
+                  className={`w-1.5 h-1.5 rounded-full transition-all ${
+                    i === galleryIndex ? "bg-lime w-4" : "bg-white/50"
+                  }`}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </section>
 
       {/* Trip Info */}
@@ -208,6 +248,33 @@ export default function TripDetail() {
           </p>
         </div>
 
+        {/* Additional Photos Gallery */}
+        {additionalImages.length > 0 && (
+          <div>
+            <h2 className="text-lg font-serif text-foreground mb-3">Photo Gallery</h2>
+            <div className="flex gap-2 overflow-x-auto pb-2 -mx-5 px-5 scrollbar-hide">
+              {allImages.map((img, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    setGalleryIndex(idx);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className={`shrink-0 rounded-xl overflow-hidden border-2 transition-all ${
+                    galleryIndex === idx ? "border-lime" : "border-transparent"
+                  }`}
+                >
+                  <img
+                    src={img}
+                    alt={`Photo ${idx + 1}`}
+                    className="w-24 h-24 object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Highlights */}
         {highlights.length > 0 && (
           <div>
@@ -241,19 +308,34 @@ export default function TripDetail() {
         )}
 
         {/* Meeting point */}
-        <div className="glass rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <MapPin size={16} className="text-lime" />
-            <span className="text-sm font-medium text-foreground">
-              Meeting Point
-            </span>
+        <div className="space-y-3">
+          <h2 className="text-lg font-serif text-foreground">Meeting Point</h2>
+          <div className="glass rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <MapPin size={16} className="text-lime" />
+              <span className="text-sm font-medium text-foreground">
+                {trip.meetingPoint || "To be announced"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground/60 ml-6">
+              Departure at {trip.time} sharp
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground ml-6">
-            {trip.meetingPoint}
-          </p>
-          <p className="text-xs text-muted-foreground/60 ml-6 mt-1">
-            Departure at {trip.time} sharp
-          </p>
+
+          {/* Map showing meeting point */}
+          {hasMeetingPointMap && (
+            <div className="rounded-xl overflow-hidden border border-white/10">
+              <MapView
+                className="h-[220px]"
+                initialCenter={{
+                  lat: Number(trip.meetingPointLat),
+                  lng: Number(trip.meetingPointLng),
+                }}
+                initialZoom={14}
+                onMapReady={handleMapReady}
+              />
+            </div>
+          )}
         </div>
       </section>
 

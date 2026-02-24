@@ -159,6 +159,8 @@ export async function createBooking(data: {
   seats: number[];
   totalPrice: number;
   paymentMethod?: string;
+  phone?: string;
+  hikingSticks?: number;
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -172,6 +174,8 @@ export async function createBooking(data: {
     seats: data.seats,
     totalPrice: String(data.totalPrice),
     paymentMethod: data.paymentMethod ?? "Cash on Bus",
+    phone: data.phone ?? null,
+    hikingSticks: data.hikingSticks ?? 0,
     referenceCode,
     status: "confirmed",
   };
