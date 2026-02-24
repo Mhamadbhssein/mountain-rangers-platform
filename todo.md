@@ -68,3 +68,6 @@
 ## Round 7
 - [x] Auto-populate Passenger 1 with logged-in user's name and phone (read-only)
 - [x] Only show empty fields for Passenger 2+ to fill in
+
+## Round 8
+- [x] Replace modern editorial fonts with simpler, more traditional fonts (Inter + Georgia)
