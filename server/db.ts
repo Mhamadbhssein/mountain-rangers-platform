@@ -161,6 +161,7 @@ export async function createBooking(data: {
   paymentMethod?: string;
   phone?: string;
   hikingSticks?: number;
+  passengerDetails?: { name: string; phone: string }[];
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -176,6 +177,7 @@ export async function createBooking(data: {
     paymentMethod: data.paymentMethod ?? "Cash on Bus",
     phone: data.phone ?? null,
     hikingSticks: data.hikingSticks ?? 0,
+    passengerDetails: data.passengerDetails ?? null,
     referenceCode,
     status: "confirmed",
   };
@@ -259,6 +261,26 @@ export async function adminUpdateBookingStatus(
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+
+  // If completing a booking, award loyalty points to the booking owner
+  if (status === "completed") {
+    const booking = await db
+      .select({ userId: bookings.userId, currentStatus: bookings.status })
+      .from(bookings)
+      .where(eq(bookings.id, bookingId))
+      .limit(1);
+
+    if (booking.length > 0 && booking[0].currentStatus !== "completed") {
+      const userId = booking[0].userId;
+      try {
+        await getOrCreateLoyalty(userId);
+        await addLoyaltyPoints(userId, 100);
+      } catch (e) {
+        console.warn("[Loyalty] Failed to award points on completion:", e);
+      }
+    }
+  }
+
   await db.update(bookings).set({ status }).where(eq(bookings.id, bookingId));
 }
 

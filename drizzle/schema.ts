@@ -84,6 +84,7 @@ export const bookings = mysqlTable("bookings", {
   paymentMethod: varchar("paymentMethod", { length: 64 }).default("Cash on Bus"),
   phone: varchar("phone", { length: 32 }),
   hikingSticks: int("hikingSticks").default(0).notNull(),
+  passengerDetails: json("passengerDetails").$type<{ name: string; phone: string }[]>(),
   bookedAt: timestamp("bookedAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

@@ -125,6 +125,9 @@ export const appRouter = router({
           paymentMethod: z.string().optional(),
           phone: z.string().min(7, "Please enter a valid phone number"),
           hikingSticks: z.number().min(0).max(10).default(0),
+          passengerDetails: z
+            .array(z.object({ name: z.string().min(1), phone: z.string().min(7) }))
+            .optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -147,15 +150,10 @@ export const appRouter = router({
           paymentMethod: input.paymentMethod,
           phone: input.phone,
           hikingSticks: input.hikingSticks,
+          passengerDetails: input.passengerDetails,
         });
 
-        // Award loyalty points
-        try {
-          await getOrCreateLoyalty(ctx.user.id);
-          await addLoyaltyPoints(ctx.user.id, 100);
-        } catch (e) {
-          console.warn("Failed to award loyalty points:", e);
-        }
+        // Loyalty points are awarded when the trip is marked as completed (not on booking)
 
         // Send WhatsApp notification to admin
         try {
@@ -172,16 +170,24 @@ export const appRouter = router({
             input.hikingSticks > 0
               ? `\n🥾 Hiking Sticks: ${input.hikingSticks} (+$${input.hikingSticks})`
               : "";
+          const passengerList =
+            input.passengerDetails && input.passengerDetails.length > 0
+              ? `\n👥 *Passengers:*\n` +
+                input.passengerDetails
+                  .map((p, i) => `  ${i + 1}. ${p.name} — ${p.phone}`)
+                  .join("\n")
+              : `\n👥 *Passengers:* ${input.passengers}`;
+
           const whatsappMessage =
             `🏔️ *New Booking Confirmed!*\n\n` +
             `📋 *Reference:* ${result.referenceCode}\n` +
-            `👤 *Name:* ${ctx.user.name ?? "Guest"}\n` +
+            `👤 *Lead:* ${ctx.user.name ?? "Guest"}\n` +
             `📞 *Phone:* ${input.phone}\n` +
             `🗺️ *Trip:* ${trip?.title ?? "Unknown"}\n` +
             `📅 *Date:* ${tripDate}\n` +
-            `🕐 *Time:* ${trip?.time ?? "N/A"}\n` +
-            `👥 *Passengers:* ${input.passengers}\n` +
-            `💺 *Seats:* ${input.seats.join(", ")}` +
+            `🕐 *Time:* ${trip?.time ?? "N/A"}` +
+            passengerList +
+            `\n💺 *Seats:* ${input.seats.join(", ")}` +
             hikingSticksLine +
             `\n💰 *Total:* $${Number(input.totalPrice).toFixed(2)}\n` +
             `💳 *Payment:* ${input.paymentMethod ?? "Cash on Bus"}\n` +

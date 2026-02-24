@@ -58,3 +58,9 @@
 - [x] Add Whish Money step-by-step payment guide in Booking Step 3 (shown only when Whish is selected)
 - [x] Whish guide includes Mountain Rangers phone number (+961 76 828 401) with tap-to-copy
 - [x] Whish guide instructs user to add name + booking reference in the payment notes
+
+## New Features (Round 6)
+- [x] Collect name + phone for each passenger when more than 1 passenger selected in Step 1
+- [x] Store passengerDetails in database for each booking
+- [x] Award 100 loyalty points when a booking status is marked as completed (not on booking creation)
+- [x] Update WhatsApp admin notification to include full passenger list with names and phones
