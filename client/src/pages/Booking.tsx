@@ -6,7 +6,7 @@
  * Design: Alpine Glass / Lime-green brand
  * ============================================================ */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 type PaymentMethod = "cash" | "whish";
 
@@ -41,6 +42,7 @@ type PaymentMethod = "cash" | "whish";
 export default function Booking() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [passengers, setPassengers] = useState(1);
   const [phone, setPhone] = useState("");
@@ -65,6 +67,16 @@ export default function Booking() {
   );
 
   const bookedSeats = useMemo(() => bookedSeatsData ?? [], [bookedSeatsData]);
+
+  useEffect(() => {
+    if (user && user.name && user.phone) {
+      setPassengerDetails((prev) => [
+        { name: user.name || "", phone: user.phone || "" },
+        ...prev.slice(1),
+      ]);
+      setPhone(user.phone || "");
+    }
+  }, [user]);
 
   const createBooking = trpc.bookings.create.useMutation({
     onSuccess: (data) => {
@@ -291,36 +303,50 @@ export default function Booking() {
                   Passenger Details
                 </h3>
                 <p className="text-xs text-muted-foreground mb-4">
-                  Please provide name and phone for each passenger
+                  Passenger 1 is you. Please add details for additional passengers.
                 </p>
                 <div className="space-y-3">
                   {passengerDetails.map((detail, idx) => (
                     <div key={idx} className="space-y-2">
                       <label className="text-xs font-medium text-foreground">
                         Passenger {idx + 1}
+                        {idx === 0 && <span className="text-lime text-xs ml-1">(You)</span>}
                       </label>
-                      <Input
-                        type="text"
-                        placeholder="Full Name"
-                        value={detail.name}
-                        onChange={(e) => {
-                          const updated = [...passengerDetails];
-                          updated[idx].name = e.target.value;
-                          setPassengerDetails(updated);
-                        }}
-                        className="bg-white/5 border-white/10 text-foreground placeholder:text-muted-foreground focus:border-lime/50 rounded-xl text-sm"
-                      />
-                      <Input
-                        type="tel"
-                        placeholder="Phone Number"
-                        value={detail.phone}
-                        onChange={(e) => {
-                          const updated = [...passengerDetails];
-                          updated[idx].phone = e.target.value;
-                          setPassengerDetails(updated);
-                        }}
-                        className="bg-white/5 border-white/10 text-foreground placeholder:text-muted-foreground focus:border-lime/50 rounded-xl text-sm"
-                      />
+                      {idx === 0 ? (
+                        <>
+                          <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-foreground">
+                            {detail.name}
+                          </div>
+                          <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-foreground">
+                            {detail.phone}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <Input
+                            type="text"
+                            placeholder="Full Name"
+                            value={detail.name}
+                            onChange={(e) => {
+                              const updated = [...passengerDetails];
+                              updated[idx].name = e.target.value;
+                              setPassengerDetails(updated);
+                            }}
+                            className="bg-white/5 border-white/10 text-foreground placeholder:text-muted-foreground focus:border-lime/50 rounded-xl text-sm"
+                          />
+                          <Input
+                            type="tel"
+                            placeholder="Phone Number"
+                            value={detail.phone}
+                            onChange={(e) => {
+                              const updated = [...passengerDetails];
+                              updated[idx].phone = e.target.value;
+                              setPassengerDetails(updated);
+                            }}
+                            className="bg-white/5 border-white/10 text-foreground placeholder:text-muted-foreground focus:border-lime/50 rounded-xl text-sm"
+                          />
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -64,3 +64,7 @@
 - [x] Store passengerDetails in database for each booking
 - [x] Award 100 loyalty points when a booking status is marked as completed (not on booking creation)
 - [x] Update WhatsApp admin notification to include full passenger list with names and phones
+
+## Round 7
+- [x] Auto-populate Passenger 1 with logged-in user's name and phone (read-only)
+- [x] Only show empty fields for Passenger 2+ to fill in
