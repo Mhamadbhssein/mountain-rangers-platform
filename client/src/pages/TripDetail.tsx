@@ -21,8 +21,12 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  Backpack,
+  Banknote,
+  Info,
+  ChevronRight as ChevronRightIcon,
 } from "lucide-react";
-import { useState, useRef, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { MapView } from "@/components/Map";
@@ -34,11 +38,23 @@ const DIFFICULTY_COLORS: Record<string, string> = {
   Expert: "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
+const WHAT_TO_BRING = [
+  "Hiking boots or trail shoes",
+  "Water (2L minimum)",
+  "Snacks / packed lunch",
+  "Sunscreen & sunglasses",
+  "Layered clothing",
+  "First aid kit",
+  "Fully charged phone",
+  "National ID / passport",
+];
+
 export default function TripDetail() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const [liked, setLiked] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
 
   const tripId = Number(id);
   const { data: trip, isLoading } = trpc.trips.getById.useQuery(
@@ -57,6 +73,15 @@ export default function TripDetail() {
       title: trip.meetingPoint ?? "Meeting Point",
     });
   }, [trip]);
+
+  const toggleCheck = (item: string) => {
+    setCheckedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(item)) next.delete(item);
+      else next.add(item);
+      return next;
+    });
+  };
 
   if (isLoading) {
     return (
@@ -306,6 +331,87 @@ export default function TripDetail() {
             </div>
           </div>
         )}
+
+        {/* ── What to Bring ── */}
+        <div className="glass rounded-2xl p-5">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-full bg-lime/15 flex items-center justify-center">
+              <Backpack size={16} className="text-lime" />
+            </div>
+            <h2 className="text-base font-semibold text-foreground">What to Bring</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {WHAT_TO_BRING.map((item) => {
+              const checked = checkedItems.has(item);
+              return (
+                <button
+                  key={item}
+                  onClick={() => toggleCheck(item)}
+                  className="flex items-start gap-2.5 text-left group"
+                >
+                  <div
+                    className={`mt-0.5 w-4 h-4 rounded shrink-0 border transition-all ${
+                      checked
+                        ? "bg-lime border-lime"
+                        : "border-white/30 bg-white/5"
+                    }`}
+                  >
+                    {checked && (
+                      <svg viewBox="0 0 12 12" fill="none" className="w-full h-full p-0.5">
+                        <path d="M2 6l3 3 5-5" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className={`text-xs leading-snug transition-colors ${checked ? "text-lime line-through" : "text-muted-foreground"}`}>
+                    {item}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Cash Payment Reminder ── */}
+        <div className="glass rounded-2xl p-5 border border-amber-500/20">
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center">
+              <Banknote size={16} className="text-amber-400" />
+            </div>
+            <h2 className="text-base font-semibold text-foreground">Cash Payment Reminder</h2>
+          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Please bring{" "}
+            <span className="font-bold text-foreground">${trip.price} cash</span>{" "}
+            on the day of the trip. Hand it to the organiser at the meeting point before boarding.
+          </p>
+        </div>
+
+        {/* ── Important Notes ── */}
+        <div className="glass rounded-2xl p-5">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-full bg-blue-500/15 flex items-center justify-center">
+              <Info size={16} className="text-blue-400" />
+            </div>
+            <h2 className="text-base font-semibold text-foreground">Important Notes</h2>
+          </div>
+          <div className="space-y-3">
+            {[
+              { text: "Please arrive at the meeting point", bold: "30 minutes early", suffix: "." },
+              { text: "Keep your QR code accessible for scanning at departure.", bold: null, suffix: null },
+              { text: "Cancellations within 24 hours of departure may not be eligible for a refund.", bold: null, suffix: null },
+              { text: "In case of bad weather, the organiser will contact you with updates.", bold: null, suffix: null },
+            ].map((note, i) => (
+              <div key={i} className="flex items-start gap-2.5">
+                <ChevronRightIcon size={14} className="text-lime shrink-0 mt-0.5" />
+                <p className="text-sm text-muted-foreground leading-snug">
+                  {note.text}{" "}
+                  {note.bold && <span className="font-bold text-foreground">{note.bold}</span>}
+                  {note.suffix}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Meeting point */}
         <div className="space-y-3">

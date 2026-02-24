@@ -43,3 +43,12 @@
 - [x] Trip image upload (main photo + additional photos) in admin
 - [x] Map pin for meeting point in admin trip management
 - [x] Display meeting point map on trip detail page
+
+## New Features (Round 4)
+- [x] What to Bring checklist section on trip detail page
+- [x] Cash Payment Reminder section on trip detail page
+- [x] Important Notes section on trip detail page (30 min early, QR code, cancellation, weather)
+- [x] Change 15 minutes to 30 minutes early arrival note
+- [x] Confirm Reservation via WhatsApp green button on booking confirmation
+- [x] My Bookings: expandable booking details view
+- [x] My Bookings: cancel booking button (blocked within 24 hours of trip)
