@@ -52,3 +52,9 @@
 - [x] Confirm Reservation via WhatsApp green button on booking confirmation
 - [x] My Bookings: expandable booking details view
 - [x] My Bookings: cancel booking button (blocked within 24 hours of trip)
+
+## New Features (Round 5)
+- [x] Move Cash Payment Reminder from TripDetail to Booking Step 3 (shown only when Cash is selected)
+- [x] Add Whish Money step-by-step payment guide in Booking Step 3 (shown only when Whish is selected)
+- [x] Whish guide includes Mountain Rangers phone number (+961 76 828 401) with tap-to-copy
+- [x] Whish guide instructs user to add name + booking reference in the payment notes

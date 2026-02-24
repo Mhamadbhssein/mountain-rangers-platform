@@ -22,7 +22,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Backpack,
-  Banknote,
   Info,
   ChevronRight as ChevronRightIcon,
 } from "lucide-react";
@@ -369,21 +368,6 @@ export default function TripDetail() {
               );
             })}
           </div>
-        </div>
-
-        {/* ── Cash Payment Reminder ── */}
-        <div className="glass rounded-2xl p-5 border border-amber-500/20">
-          <div className="flex items-center gap-2.5 mb-3">
-            <div className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center">
-              <Banknote size={16} className="text-amber-400" />
-            </div>
-            <h2 className="text-base font-semibold text-foreground">Cash Payment Reminder</h2>
-          </div>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            Please bring{" "}
-            <span className="font-bold text-foreground">${trip.price} cash</span>{" "}
-            on the day of the trip. Hand it to the organiser at the meeting point before boarding.
-          </p>
         </div>
 
         {/* ── Important Notes ── */}

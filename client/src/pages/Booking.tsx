@@ -695,6 +695,96 @@ export default function Booking() {
               </div>
             </div>
 
+            {/* ── Conditional payment instructions ── */}
+            {payment === "cash" && (
+              <motion.div
+                key="cash-reminder"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-2xl overflow-hidden border border-yellow-400/25"
+              >
+                {/* Header */}
+                <div className="flex items-center gap-2.5 bg-yellow-400/15 px-4 py-3">
+                  <Banknote size={18} className="text-yellow-400 shrink-0" />
+                  <p className="text-sm font-semibold text-yellow-300">Cash Payment Reminder</p>
+                </div>
+                {/* Body */}
+                <div className="bg-yellow-400/5 px-4 py-3 space-y-2">
+                  {[
+                    "Bring the exact amount in cash on the day of the trip.",
+                    "Payment is collected by the guide when you board the bus.",
+                    "No change is guaranteed — please prepare the exact fare.",
+                    "Your seat is reserved; payment confirms your spot.",
+                  ].map((note, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <span className="mt-0.5 w-4 h-4 rounded-full bg-yellow-400/20 flex items-center justify-center shrink-0">
+                        <span className="text-[9px] font-bold text-yellow-400">{idx + 1}</span>
+                      </span>
+                      <p className="text-xs text-yellow-200/80 leading-relaxed">{note}</p>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {payment === "whish" && (
+              <motion.div
+                key="whish-guide"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-2xl overflow-hidden border border-[#8B5CF6]/30"
+              >
+                {/* Header */}
+                <div className="flex items-center gap-2.5 bg-[#8B5CF6]/15 px-4 py-3">
+                  <CreditCard size={18} className="text-[#A78BFA] shrink-0" />
+                  <p className="text-sm font-semibold text-[#C4B5FD]">How to Pay via Whish Money</p>
+                </div>
+                {/* Body */}
+                <div className="bg-[#8B5CF6]/5 px-4 py-3 space-y-3">
+                  {/* Steps */}
+                  {[
+                    { step: "1", text: "Open the Whish Money app on your phone." },
+                    { step: "2", text: "Tap \"Send Money\" and choose Whish to Whish." },
+                    { step: "3", text: "Enter Mountain Rangers' number:" },
+                    { step: "4", text: `In the Notes / Reference field write: your name + booking reference (e.g. \"John Doe ${bookingRef || "MR-XXXXXX"}\").` },
+                    { step: "5", text: `Enter the amount: $${totalPrice.toFixed(2)} and confirm the transfer.` },
+                  ].map(({ step, text }) => (
+                    <div key={step} className="flex items-start gap-2.5">
+                      <span className="mt-0.5 w-5 h-5 rounded-full bg-[#8B5CF6]/30 flex items-center justify-center shrink-0">
+                        <span className="text-[9px] font-bold text-[#C4B5FD]">{step}</span>
+                      </span>
+                      <p className="text-xs text-[#DDD6FE]/80 leading-relaxed">{text}</p>
+                    </div>
+                  ))}
+
+                  {/* Phone number highlight */}
+                  <div className="flex items-center justify-between bg-[#8B5CF6]/20 rounded-xl px-3 py-2.5 mt-1">
+                    <div className="flex items-center gap-2">
+                      <Phone size={14} className="text-[#A78BFA]" />
+                      <span className="text-xs text-[#C4B5FD] font-medium">Mountain Rangers</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard?.writeText("+96176828401");
+                        toast.success("Number copied!");
+                      }}
+                      className="text-sm font-bold text-white tracking-wide"
+                    >
+                      +961 76 828 401
+                    </button>
+                  </div>
+
+                  {/* Notes reminder */}
+                  <div className="flex items-start gap-2 bg-white/5 rounded-xl px-3 py-2.5">
+                    <MessageCircle size={13} className="text-[#A78BFA] mt-0.5 shrink-0" />
+                    <p className="text-xs text-[#DDD6FE]/70 leading-relaxed">
+                      <strong className="text-[#C4B5FD]">Important:</strong> Always include your <strong className="text-white">full name</strong> and <strong className="text-white">booking reference</strong> in the Whish notes so we can match your payment.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             {/* WhatsApp notice */}
             <div className="flex items-start gap-2 p-3 rounded-xl bg-green-500/10 border border-green-500/20">
               <MessageCircle size={16} className="text-green-400 mt-0.5 flex-shrink-0" />
