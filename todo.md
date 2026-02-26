@@ -71,3 +71,6 @@
 
 ## Round 8
 - [x] Replace modern editorial fonts with simpler, more traditional fonts (Inter + Georgia)
+
+## Round 9
+- [x] Change fonts to bold geometric sans-serif matching Mountain Rangers logo (Poppins)
