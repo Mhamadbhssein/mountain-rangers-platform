@@ -88,3 +88,6 @@
 ## Round 13
 - [x] Fix seat layout to match bus design (Driver + 2 guide seats + 27 passenger seats in 4-seat rows)
 - [x] Ensure seat selection UI shows correct grid layout with door indicator
+
+## Round 14
+- [x] Fix seat 4 not appearing in seat selection layout (changed col array from 1,2,3,4 to 0,1,2,3)

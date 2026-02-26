@@ -543,7 +543,7 @@ export default function Booking() {
                 {/* Rows 2-8: 4 seats per row */}
                 {[0, 1, 2, 3, 4, 5, 6].map((row) => (
                   <div key={row} className="flex items-center justify-center gap-2">
-                    {[1, 2, 3, 4].map((col) => {
+                    {[0, 1, 2, 3].map((col) => {
                       const seatNum = 4 + row * 4 + col;
                       return seatNum <= 27 ? <SeatButton key={seatNum} seatNum={seatNum} /> : null;
                     })}
