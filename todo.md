@@ -84,3 +84,7 @@
 - [x] Add country code selector to phone inputs (Lebanon +961 by default)
 - [x] Update Booking Step 1 main phone field with country code selector
 - [x] Update Booking Step 1 passenger phone fields with country code selector
+
+## Round 13
+- [x] Fix seat layout to match bus design (Driver + 2 guide seats + 27 passenger seats in 4-seat rows)
+- [x] Ensure seat selection UI shows correct grid layout with door indicator
