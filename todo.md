@@ -74,3 +74,6 @@
 
 ## Round 9
 - [x] Change fonts to bold geometric sans-serif matching Mountain Rangers logo (Poppins)
+
+## Round 10
+- [x] Replace old logos with new Mountain Rangers logo (dark and white versions)

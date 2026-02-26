@@ -6,10 +6,10 @@
 
 // Logo URLs (transparent background)
 export const LOGOS = {
-  iconWhite: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663372447737/UNRHkjfTrElPUZin.png",
-  nameWhite: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663372447737/UtylpUmlTndrbyUk.png",
-  iconDark: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663372447737/GOBZfBdVHQKFNQoH.png",
-  nameDark: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663372447737/XDWOyJefBxPEiTLn.png",
+  iconWhite: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663372447737/qAizGMmfLZbuymMo.png",
+  nameWhite: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663372447737/qAizGMmfLZbuymMo.png",
+  iconDark: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663372447737/XDnbUcdIDvACSdOX.png",
+  nameDark: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663372447737/XDnbUcdIDvACSdOX.png",
 };
 
 // Image URLs
