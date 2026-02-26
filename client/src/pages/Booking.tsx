@@ -46,6 +46,7 @@ export default function Booking() {
   const [step, setStep] = useState(1);
   const [passengers, setPassengers] = useState(1);
   const [phone, setPhone] = useState("");
+  const [countryCode, setCountryCode] = useState("+961"); // Lebanon by default
   // Per-passenger details: index 0 = lead booker
   const [passengerDetails, setPassengerDetails] = useState<{ name: string; phone: string }[]>([{ name: "", phone: "" }]);
   const [hikingSticks, setHikingSticks] = useState(0);
@@ -286,13 +287,40 @@ export default function Booking() {
               <p className="text-xs text-muted-foreground mb-3">
                 We'll send your booking confirmation via WhatsApp
               </p>
-              <Input
-                type="tel"
-                placeholder="+961 XX XXX XXX"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="bg-white/5 border-white/10 text-foreground placeholder:text-muted-foreground focus:border-lime/50 rounded-xl"
-              />
+              <div className="flex gap-2">
+                <select
+                  value={countryCode}
+                  onChange={(e) => setCountryCode(e.target.value)}
+                  className="w-24 bg-white/5 border border-white/10 text-foreground focus:border-lime/50 rounded-xl px-3 py-2 text-sm"
+                >
+                  <option value="+961">LB +961</option>
+                  <option value="+1">US +1</option>
+                  <option value="+44">UK +44</option>
+                  <option value="+33">FR +33</option>
+                  <option value="+49">DE +49</option>
+                  <option value="+39">IT +39</option>
+                  <option value="+34">ES +34</option>
+                  <option value="+31">NL +31</option>
+                  <option value="+41">CH +41</option>
+                  <option value="+43">AT +43</option>
+                  <option value="+45">DK +45</option>
+                  <option value="+46">SE +46</option>
+                  <option value="+47">NO +47</option>
+                  <option value="+358">FI +358</option>
+                  <option value="+30">GR +30</option>
+                  <option value="+90">TR +90</option>
+                  <option value="+20">EG +20</option>
+                  <option value="+212">MA +212</option>
+                  <option value="+216">TN +216</option>
+                </select>
+                <Input
+                  type="tel"
+                  placeholder="XX XXX XXX"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="flex-1 bg-white/5 border-white/10 text-foreground placeholder:text-muted-foreground focus:border-lime/50 rounded-xl"
+                />
+              </div>
             </div>
 
             {/* Passenger Details — shown only if more than 1 passenger */}
@@ -334,17 +362,44 @@ export default function Booking() {
                             }}
                             className="bg-white/5 border-white/10 text-foreground placeholder:text-muted-foreground focus:border-lime/50 rounded-xl text-sm"
                           />
-                          <Input
-                            type="tel"
-                            placeholder="Phone Number"
-                            value={detail.phone}
-                            onChange={(e) => {
-                              const updated = [...passengerDetails];
-                              updated[idx].phone = e.target.value;
-                              setPassengerDetails(updated);
-                            }}
-                            className="bg-white/5 border-white/10 text-foreground placeholder:text-muted-foreground focus:border-lime/50 rounded-xl text-sm"
-                          />
+                          <div className="flex gap-2">
+                            <select
+                              value={countryCode}
+                              onChange={(e) => setCountryCode(e.target.value)}
+                              className="w-20 bg-white/5 border border-white/10 text-foreground focus:border-lime/50 rounded-xl px-2 py-2 text-xs"
+                            >
+                              <option value="+961">LB</option>
+                              <option value="+1">US</option>
+                              <option value="+44">UK</option>
+                              <option value="+33">FR</option>
+                              <option value="+49">DE</option>
+                              <option value="+39">IT</option>
+                              <option value="+34">ES</option>
+                              <option value="+31">NL</option>
+                              <option value="+41">CH</option>
+                              <option value="+43">AT</option>
+                              <option value="+45">DK</option>
+                              <option value="+46">SE</option>
+                              <option value="+47">NO</option>
+                              <option value="+358">FI</option>
+                              <option value="+30">GR</option>
+                              <option value="+90">TR</option>
+                              <option value="+20">EG</option>
+                              <option value="+212">MA</option>
+                              <option value="+216">TN</option>
+                            </select>
+                            <Input
+                              type="tel"
+                              placeholder="XX XXX XXX"
+                              value={detail.phone}
+                              onChange={(e) => {
+                                const updated = [...passengerDetails];
+                                updated[idx].phone = e.target.value;
+                                setPassengerDetails(updated);
+                              }}
+                              className="flex-1 bg-white/5 border-white/10 text-foreground placeholder:text-muted-foreground focus:border-lime/50 rounded-xl text-sm"
+                            />
+                          </div>
                         </>
                       )}
                     </div>

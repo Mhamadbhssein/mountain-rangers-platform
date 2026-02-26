@@ -80,3 +80,7 @@
 
 ## Round 11
 - [x] Update logos to latest versions (icon and name logos for both dark and white)
+## Round 12
+- [x] Add country code selector to phone inputs (Lebanon +961 by default)
+- [x] Update Booking Step 1 main phone field with country code selector
+- [x] Update Booking Step 1 passenger phone fields with country code selector
