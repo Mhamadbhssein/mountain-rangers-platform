@@ -77,3 +77,6 @@
 
 ## Round 10
 - [x] Replace old logos with new Mountain Rangers logo (dark and white versions)
+
+## Round 11
+- [x] Update logos to latest versions (icon and name logos for both dark and white)
