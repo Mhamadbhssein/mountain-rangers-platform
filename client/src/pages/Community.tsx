@@ -4,6 +4,7 @@
  * Hero banner, post cards with images, like/comment actions
  * ============================================================ */
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Heart,
@@ -18,12 +19,18 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function Community() {
   const { isAuthenticated } = useAuth();
   const utils = trpc.useUtils();
 
   const { data: posts, isLoading } = trpc.community.posts.useQuery();
+  const [expandedPost, setExpandedPost] = useState<number | null>(null);
+  const [postComments, setPostComments] = useState<Record<number, any[]>>({});
+  const [commentText, setCommentText] = useState<Record<number, string>>({});
+  const [loadingPostId, setLoadingPostId] = useState<number | null>(null);
 
   const toggleLikeMutation = trpc.community.toggleLike.useMutation({
     onSuccess: () => {
@@ -31,12 +38,76 @@ export default function Community() {
     },
   });
 
+  const addCommentMutation = trpc.community.addComment.useMutation({
+    onSuccess: (_, variables) => {
+      setCommentText({ ...commentText, [variables.postId]: "" });
+      setLoadingPostId(variables.postId);
+      loadPostComments(variables.postId);
+      toast.success("Comment added");
+    },
+    onError: () => {
+      toast.error("Failed to add comment");
+    },
+  });
+
+  const loadPostComments = async (postId: number) => {
+    setLoadingPostId(postId);
+    try {
+      const data = await utils.community.getComments.fetch({ postId });
+      setPostComments((prev) => ({ ...prev, [postId]: data }));
+    } catch (error) {
+      toast.error("Failed to load comments");
+    } finally {
+      setLoadingPostId(null);
+    }
+  };
+
   const handleLike = (postId: number) => {
     if (!isAuthenticated) {
       window.location.href = getLoginUrl();
       return;
     }
     toggleLikeMutation.mutate({ postId });
+  };
+
+  const handleExpandComments = (postId: number) => {
+    if (expandedPost === postId) {
+      setExpandedPost(null);
+    } else {
+      setExpandedPost(postId);
+      if (!postComments[postId]) {
+        loadPostComments(postId);
+      }
+    }
+  };
+
+  const handleAddComment = (postId: number) => {
+    if (!isAuthenticated) {
+      window.location.href = getLoginUrl();
+      return;
+    }
+    const text = commentText[postId]?.trim();
+    if (!text) {
+      toast.error("Comment cannot be empty");
+      return;
+    }
+    addCommentMutation.mutate({ postId, content: text });
+  };
+
+  const handleShare = (post: any) => {
+    const url = window.location.href;
+    const text = `Check out this post from ${post.author?.name || "Mountain Rangers"}: "${post.content.substring(0, 50)}..."`;
+
+    if (navigator.share) {
+      navigator.share({
+        title: "Mountain Rangers Community",
+        text: text,
+        url: url,
+      });
+    } else {
+      navigator.clipboard.writeText(`${text}\n${url}`);
+      toast.success("Link copied to clipboard");
+    }
   };
 
   const formatTimeAgo = (date: Date | string) => {
@@ -62,7 +133,7 @@ export default function Community() {
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/50 to-background" />
         <div className="absolute inset-0 flex flex-col justify-end px-5 pb-5">
-          <h1 className="text-2xl font-serif text-white">Community</h1>
+          <h1 className="text-2xl font-bold text-white">Community</h1>
           <p className="text-white/60 text-sm mt-1">
             Stories from the trail
           </p>
@@ -116,6 +187,7 @@ export default function Community() {
         ) : (
           (posts ?? []).map((post, i) => {
             const images: string[] = Array.isArray(post.images) ? post.images : [];
+            const comments = postComments[post.id] || [];
             return (
               <motion.div
                 key={post.id}
@@ -180,7 +252,7 @@ export default function Community() {
                     </span>
                   </button>
                   <button
-                    onClick={() => toast.info("Feature coming soon")}
+                    onClick={() => handleExpandComments(post.id)}
                     className="flex items-center gap-1.5 group"
                   >
                     <MessageCircle
@@ -192,7 +264,7 @@ export default function Community() {
                     </span>
                   </button>
                   <button
-                    onClick={() => toast.info("Feature coming soon")}
+                    onClick={() => handleShare(post)}
                     className="flex items-center gap-1.5 group ml-auto"
                   >
                     <Share2
@@ -201,6 +273,71 @@ export default function Community() {
                     />
                   </button>
                 </div>
+
+                {/* Comments section */}
+                {expandedPost === post.id && (
+                  <div className="border-t border-white/10 px-4 py-3 space-y-3">
+                    {/* Comments list */}
+                    {loadingPostId === post.id ? (
+                      <div className="flex justify-center py-2">
+                        <Loader2 size={16} className="text-lime animate-spin" />
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {comments.length === 0 ? (
+                          <p className="text-xs text-muted-foreground text-center py-2">
+                            No comments yet
+                          </p>
+                        ) : (
+                          comments.map((comment: any) => (
+                            <div key={comment.comment.id} className="text-xs">
+                              <p className="font-semibold text-foreground">
+                                {comment.author.name}
+                              </p>
+                              <p className="text-muted-foreground">
+                                {comment.comment.content}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground/60 mt-1">
+                                {formatTimeAgo(comment.comment.createdAt)}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+
+                    {/* Add comment */}
+                    {isAuthenticated && (
+                      <div className="flex gap-2 pt-2 border-t border-white/5">
+                        <Input
+                          type="text"
+                          placeholder="Add a comment..."
+                          value={commentText[post.id] || ""}
+                          onChange={(e) =>
+                            setCommentText({
+                              ...commentText,
+                              [post.id]: e.target.value,
+                            })
+                          }
+                          onKeyPress={(e) => {
+                            if (e.key === "Enter") {
+                              handleAddComment(post.id);
+                            }
+                          }}
+                          className="text-xs h-8"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={() => handleAddComment(post.id)}
+                          disabled={addCommentMutation.isPending}
+                          className="h-8"
+                        >
+                          Post
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </motion.div>
             );
           })

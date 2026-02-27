@@ -29,6 +29,9 @@ import {
   deletePost,
   toggleLike,
   getUserLikedPosts,
+  getPostComments,
+  createComment,
+  deleteComment,
   getOrCreateLoyalty,
   addLoyaltyPoints,
   requestNfcCard,
@@ -254,6 +257,30 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const liked = await toggleLike(ctx.user.id, input.postId);
         return { liked };
+      }),
+
+    getComments: publicProcedure
+      .input(z.object({ postId: z.number() }))
+      .query(async ({ input }) => {
+        return getPostComments(input.postId);
+      }),
+
+    addComment: protectedProcedure
+      .input(z.object({ postId: z.number(), content: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const commentId = await createComment({
+          userId: ctx.user.id,
+          postId: input.postId,
+          content: input.content,
+        });
+        return { id: commentId };
+      }),
+
+    deleteComment: protectedProcedure
+      .input(z.object({ commentId: z.number(), postId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteComment(input.commentId, input.postId);
+        return { success: true };
       }),
   }),
 

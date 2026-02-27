@@ -141,3 +141,18 @@ export const loyalty = mysqlTable("loyalty", {
 
 export type Loyalty = typeof loyalty.$inferSelect;
 export type InsertLoyalty = typeof loyalty.$inferInsert;
+
+/* ============================================================
+ * Post Comments — Comments on community posts
+ * ============================================================ */
+export const postComments = mysqlTable("post_comments", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  postId: int("postId").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PostComment = typeof postComments.$inferSelect;
+export type InsertPostComment = typeof postComments.$inferInsert;

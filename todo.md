@@ -91,3 +91,8 @@
 
 ## Round 14
 - [x] Fix seat 4 not appearing in seat selection layout (changed col array from 1,2,3,4 to 0,1,2,3)
+
+## Round 15
+- [x] Implement comments feature on community posts (expandable, add/view comments)
+- [x] Implement share feature for posts (native share or clipboard)
+- [ ] Add create post functionality (coming soon)

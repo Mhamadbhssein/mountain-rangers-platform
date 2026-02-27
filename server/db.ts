@@ -7,10 +7,12 @@ import {
   bookings,
   communityPosts,
   postLikes,
+  postComments,
   loyalty,
   type InsertTrip,
   type InsertBooking,
   type InsertCommunityPost,
+  type InsertPostComment,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { nanoid } from "nanoid";
@@ -564,4 +566,49 @@ export async function adminAdjustPoints(userId: number, points: number) {
     .update(loyalty)
     .set({ points: sql`${loyalty.points} + ${points}` })
     .where(eq(loyalty.userId, userId));
+}
+
+export async function getPostComments(postId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db
+    .select({
+      comment: postComments,
+      author: { id: users.id, name: users.name, avatarUrl: users.avatarUrl },
+    })
+    .from(postComments)
+    .innerJoin(users, eq(postComments.userId, users.id))
+    .where(eq(postComments.postId, postId))
+    .orderBy(desc(postComments.createdAt));
+  return result;
+}
+
+export async function createComment(data: {
+  userId: number;
+  postId: number;
+  content: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const values: InsertPostComment = {
+    userId: data.userId,
+    postId: data.postId,
+    content: data.content,
+  };
+  const result = await db.insert(postComments).values(values);
+  await db
+    .update(communityPosts)
+    .set({ commentsCount: sql`${communityPosts.commentsCount} + 1` })
+    .where(eq(communityPosts.id, data.postId));
+  return result[0].insertId;
+}
+
+export async function deleteComment(commentId: number, postId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(postComments).where(eq(postComments.id, commentId));
+  await db
+    .update(communityPosts)
+    .set({ commentsCount: sql`${communityPosts.commentsCount} - 1` })
+    .where(eq(communityPosts.id, postId));
 }
