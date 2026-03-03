@@ -96,3 +96,8 @@
 - [x] Implement comments feature on community posts (expandable, add/view comments)
 - [x] Implement share feature for posts (native share or clipboard)
 - [ ] Add create post functionality (coming soon)
+
+## Round 16 (Completed)
+- [x] Add create post form with image upload and text editor (modal-based)
+- [ ] Implement admin moderation tools in admin panel
+- [ ] Add trip review system that auto-creates community posts

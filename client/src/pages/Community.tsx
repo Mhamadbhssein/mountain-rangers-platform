@@ -31,6 +31,24 @@ export default function Community() {
   const [postComments, setPostComments] = useState<Record<number, any[]>>({});
   const [commentText, setCommentText] = useState<Record<number, string>>({});
   const [loadingPostId, setLoadingPostId] = useState<number | null>(null);
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [postContent, setPostContent] = useState("");
+  const [postImages, setPostImages] = useState<string[]>([]);
+  const [tripTitle, setTripTitle] = useState("");
+
+  const createPostMutation = trpc.community.createPost.useMutation({
+    onSuccess: () => {
+      setPostContent("");
+      setPostImages([]);
+      setTripTitle("");
+      setShowCreatePost(false);
+      utils.community.posts.invalidate();
+      toast.success("Post created");
+    },
+    onError: () => {
+      toast.error("Failed to create post");
+    },
+  });
 
   const toggleLikeMutation = trpc.community.toggleLike.useMutation({
     onSuccess: () => {
@@ -160,11 +178,17 @@ export default function Community() {
         </div>
       </section>
 
-      {/* Share prompt */}
+      {/* Create post prompt */}
       <section className="px-5 mb-5">
         <button
-          onClick={() => toast.info("Feature coming soon")}
-          className="w-full glass rounded-2xl p-4 flex items-center gap-3"
+          onClick={() => {
+            if (!isAuthenticated) {
+              window.location.href = getLoginUrl();
+              return;
+            }
+            setShowCreatePost(true);
+          }}
+          className="w-full glass rounded-2xl p-4 flex items-center gap-3 hover:bg-white/5 transition"
         >
           <div className="w-10 h-10 rounded-full bg-lime/10 flex items-center justify-center">
             <Camera size={18} className="text-lime" />
@@ -177,6 +201,63 @@ export default function Community() {
           <Share2 size={16} className="text-muted-foreground" />
         </button>
       </section>
+
+      {/* Create post modal */}
+      {showCreatePost && (
+        <div className="fixed inset-0 bg-black/50 flex items-end z-50">
+          <div className="w-full bg-background rounded-t-3xl p-5 animate-in slide-in-from-bottom">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold">Create Post</h2>
+              <button
+                onClick={() => setShowCreatePost(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <Input
+                placeholder="Trip title (optional)"
+                value={tripTitle}
+                onChange={(e) => setTripTitle(e.target.value)}
+              />
+              <textarea
+                placeholder="Share your story..."
+                value={postContent}
+                onChange={(e) => setPostContent(e.target.value)}
+                className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-foreground placeholder:text-muted-foreground min-h-24 resize-none"
+              />
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    if (!postContent.trim()) {
+                      toast.error("Post cannot be empty");
+                      return;
+                    }
+                    createPostMutation.mutate({
+                      content: postContent,
+                      tripTitle: tripTitle || undefined,
+                      images: postImages,
+                    });
+                  }}
+                  disabled={createPostMutation.isPending}
+                  className="flex-1 bg-lime hover:bg-lime/90 text-black font-semibold"
+                >
+                  {createPostMutation.isPending ? "Posting..." : "Post"}
+                </Button>
+                <Button
+                  onClick={() => setShowCreatePost(false)}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Posts feed */}
       <section className="px-5 space-y-4 pb-6">
