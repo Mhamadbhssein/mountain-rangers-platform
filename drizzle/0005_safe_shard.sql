@@ -1,0 +1,1 @@
+ALTER TABLE `community_posts` ADD `status` enum('pending','approved','rejected') DEFAULT 'pending' NOT NULL;

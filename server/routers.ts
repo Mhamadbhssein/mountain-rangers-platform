@@ -40,6 +40,9 @@ import {
   adminAdjustPoints,
   getAllUsers,
   updateUserRole,
+  getPendingPosts,
+  approvePost,
+  rejectPost,
 } from "./db";
 
 /* Admin guard middleware */
@@ -282,6 +285,24 @@ export const appRouter = router({
         await deleteComment(input.commentId, input.postId);
         return { success: true };
       }),
+
+    pendingPosts: adminProcedure.query(async () => {
+      return getPendingPosts();
+    }),
+
+    approvePost: adminProcedure
+      .input(z.object({ postId: z.number() }))
+      .mutation(async ({ input }) => {
+        await approvePost(input.postId);
+        return { success: true };
+      }),
+
+    rejectPost: adminProcedure
+      .input(z.object({ postId: z.number() }))
+      .mutation(async ({ input }) => {
+        await rejectPost(input.postId);
+        return { success: true };
+      })
   }),
 
   /* ============================================================

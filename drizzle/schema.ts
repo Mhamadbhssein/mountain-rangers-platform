@@ -103,6 +103,7 @@ export const communityPosts = mysqlTable("community_posts", {
   images: json("images").$type<string[]>(),
   likesCount: int("likesCount").default(0).notNull(),
   commentsCount: int("commentsCount").default(0).notNull(),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

@@ -101,3 +101,9 @@
 - [x] Add create post form with image upload and text editor (modal-based)
 - [ ] Implement admin moderation tools in admin panel
 - [ ] Add trip review system that auto-creates community posts
+
+## Round 17
+- [x] Add moderation status to posts table (pending/approved/rejected)
+- [x] Add backend procedures for approving/rejecting posts
+- [x] Create admin moderation page UI (AdminModeration.tsx)
+- [x] Update community feed to only show approved posts

@@ -370,6 +370,7 @@ export async function getAllPosts() {
     })
     .from(communityPosts)
     .innerJoin(users, eq(communityPosts.userId, users.id))
+    .where(eq(communityPosts.status, "approved"))
     .orderBy(desc(communityPosts.createdAt));
   return result;
 }
@@ -610,5 +611,38 @@ export async function deleteComment(commentId: number, postId: number) {
   await db
     .update(communityPosts)
     .set({ commentsCount: sql`${communityPosts.commentsCount} - 1` })
+    .where(eq(communityPosts.id, postId));
+}
+
+export async function getPendingPosts() {
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db
+    .select({
+      post: communityPosts,
+      author: { id: users.id, name: users.name, avatarUrl: users.avatarUrl },
+    })
+    .from(communityPosts)
+    .innerJoin(users, eq(communityPosts.userId, users.id))
+    .where(eq(communityPosts.status, "pending"))
+    .orderBy(desc(communityPosts.createdAt));
+  return result;
+}
+
+export async function approvePost(postId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(communityPosts)
+    .set({ status: "approved" })
+    .where(eq(communityPosts.id, postId));
+}
+
+export async function rejectPost(postId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(communityPosts)
+    .set({ status: "rejected" })
     .where(eq(communityPosts.id, postId));
 }
