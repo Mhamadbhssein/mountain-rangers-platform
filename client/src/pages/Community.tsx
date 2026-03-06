@@ -365,15 +365,29 @@ export default function Community() {
                   </p>
                 </div>
 
-                {/* Image */}
+                {/* Images Carousel */}
                 {images.length > 0 && (
                   <div className="px-4 pb-3">
-                    <img
-                      src={images[0]}
-                      alt="Trip memory"
-                      className="w-full h-48 object-cover rounded-xl"
-                      loading="lazy"
-                    />
+                    {images.length === 1 ? (
+                      <img
+                        src={images[0]}
+                        alt="Trip memory"
+                        className="w-full h-48 object-cover rounded-xl"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="relative">
+                        <img
+                          src={images[0]}
+                          alt="Trip memory"
+                          className="w-full h-48 object-cover rounded-xl"
+                          loading="lazy"
+                        />
+                        <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                          1 / {images.length}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

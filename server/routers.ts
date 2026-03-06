@@ -246,11 +246,22 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        const imageUrls: string[] = [];
+        if (input.images && input.images.length > 0) {
+          for (let i = 0; i < input.images.length; i++) {
+            const base64 = input.images[i];
+            const buffer = Buffer.from(base64.split(',')[1] || base64, 'base64');
+            const key = `posts/${ctx.user.id}/${Date.now()}-${i}.jpg`;
+            const { url } = await storagePut(key, buffer, 'image/jpeg');
+            imageUrls.push(url);
+          }
+        }
+        
         const postId = await createPost({
           userId: ctx.user.id,
           content: input.content,
           tripTitle: input.tripTitle,
-          images: input.images,
+          images: imageUrls,
         });
         return { id: postId };
       }),

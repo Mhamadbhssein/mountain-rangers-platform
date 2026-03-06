@@ -112,3 +112,8 @@
 - [x] Add share button to create post modal
 - [x] Add multi-image gallery picker to create post form
 - [x] Add image preview and remove functionality
+
+## Round 19
+- [x] Store post images in S3 when posts are created
+- [x] Display images in community feed below post content
+- [x] Add image carousel for posts with multiple photos (shows image count)
