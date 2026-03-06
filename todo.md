@@ -107,3 +107,8 @@
 - [x] Add backend procedures for approving/rejecting posts
 - [x] Create admin moderation page UI (AdminModeration.tsx)
 - [x] Update community feed to only show approved posts
+
+## Round 18
+- [x] Add share button to create post modal
+- [x] Add multi-image gallery picker to create post form
+- [x] Add image preview and remove functionality

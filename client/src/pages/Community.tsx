@@ -228,6 +228,50 @@ export default function Community() {
                 onChange={(e) => setPostContent(e.target.value)}
                 className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-foreground placeholder:text-muted-foreground min-h-24 resize-none"
               />
+              
+              {/* Image picker */}
+              <div className="border-2 border-dashed border-lime/30 rounded-lg p-4 text-center cursor-pointer hover:border-lime/60 transition">
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    files.forEach((file) => {
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        const result = event.target?.result as string;
+                        setPostImages((prev) => [...prev, result]);
+                      };
+                      reader.readAsDataURL(file);
+                    });
+                  }}
+                  className="hidden"
+                  id="image-input"
+                />
+                <label htmlFor="image-input" className="cursor-pointer flex flex-col items-center gap-2">
+                  <Camera size={20} className="text-lime" />
+                  <span className="text-sm text-muted-foreground">Add photos ({postImages.length})</span>
+                </label>
+              </div>
+              
+              {/* Image preview */}
+              {postImages.length > 0 && (
+                <div className="grid grid-cols-3 gap-2">
+                  {postImages.map((img, idx) => (
+                    <div key={idx} className="relative group">
+                      <img src={img} alt={`Preview ${idx}`} className="w-full h-20 object-cover rounded" />
+                      <button
+                        onClick={() => setPostImages((prev) => prev.filter((_, i) => i !== idx))}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition text-xs"
+                      >
+                        X
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
               <div className="flex gap-2">
                 <Button
                   onClick={() => {
@@ -252,6 +296,25 @@ export default function Community() {
                   className="flex-1"
                 >
                   Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    const url = window.location.href;
+                    if (navigator.share) {
+                      navigator.share({
+                        title: "Mountain Rangers",
+                        text: "Check out Mountain Rangers - book amazing hiking trips!",
+                        url: url,
+                      });
+                    } else {
+                      navigator.clipboard.writeText(url);
+                      toast.success("Link copied");
+                    }
+                  }}
+                  variant="outline"
+                  size="icon"
+                >
+                  <Share2 size={18} />
                 </Button>
               </div>
             </div>
