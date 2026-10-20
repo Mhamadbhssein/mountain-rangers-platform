@@ -1,90 +1,53 @@
-/* ============================================================
- * AppLayout — Persistent bottom navigation + page container
- * Design: Alpine Glass / Lime-green brand identity
- * Bottom nav with glass effect, morphing active states
- * ============================================================ */
-
 import { useLocation, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Compass, CalendarCheck, Users, User } from "lucide-react";
+import { Compass, CalendarDays, Map, Users, User } from "lucide-react";
 import { type ReactNode } from "react";
-import { LOGOS } from "@/lib/data";
+import { PUBLIC_NAV_ITEMS } from "@/lib/publicShell";
 
-const NAV_ITEMS = [
-  { path: "/", label: "Explore", icon: Compass },
-  { path: "/bookings", label: "Bookings", icon: CalendarCheck },
-  { path: "/community", label: "Community", icon: Users },
-  { path: "/profile", label: "Profile", icon: User },
-];
+const NAV_ICONS = { compass: Compass, calendar: CalendarDays, map: Map, users: Users, user: User } as const;
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
-
   const hideNav = location.startsWith("/book/") || location.startsWith("/trip/");
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Main content area with bottom padding for nav */}
-      <main className={`flex-1 ${hideNav ? "" : "pb-20"}`}>
+    <div className="min-h-screen bg-[#f7f8f5] text-[#172019] flex flex-col">
+      <main className={`flex-1 ${hideNav ? "" : "pb-24"}`}>
         <AnimatePresence mode="wait">
           <motion.div
             key={location}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
           >
             {children}
           </motion.div>
         </AnimatePresence>
       </main>
 
-      {/* Bottom Navigation — Glass panel */}
       {!hideNav && (
-        <nav className="fixed bottom-0 left-0 right-0 z-50">
-          <div className="glass-strong border-t border-white/[0.08]">
-            <div className="flex items-center justify-around px-2 py-2 max-w-lg mx-auto">
-              {NAV_ITEMS.map((item) => {
-                const isActive =
-                  item.path === "/"
-                    ? location === "/"
-                    : location.startsWith(item.path);
-                const Icon = item.icon;
-
+        <nav className="fixed bottom-0 left-0 right-0 z-50 px-3 pb-3">
+          <div className="mx-auto max-w-md rounded-3xl border border-black/[0.06] bg-white/95 p-2 shadow-[0_12px_40px_rgba(41,58,42,0.14)] backdrop-blur-xl">
+            <div className="grid grid-cols-5 gap-1">
+              {PUBLIC_NAV_ITEMS.map((item) => {
+                const isActive = item.path === "/" ? location === "/" : location.startsWith(item.path);
+                const Icon = NAV_ICONS[item.icon];
                 return (
                   <Link key={item.path} href={item.path}>
                     <motion.div
-                      className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-2xl transition-colors relative ${
-                        isActive ? "text-lime" : "text-muted-foreground"
+                      whileTap={{ scale: 0.94 }}
+                      className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-semibold transition-colors ${
+                        isActive ? "bg-[#eef5d8] text-[#719000]" : "text-[#8b948d] hover:bg-[#f5f7f2]"
                       }`}
-                      whileTap={{ scale: 0.92 }}
                     >
-                      {isActive && (
-                        <motion.div
-                          layoutId="nav-indicator"
-                          className="absolute inset-0 rounded-2xl"
-                          style={{ background: "oklch(0.82 0.18 120 / 10%)" }}
-                          transition={{
-                            type: "spring",
-                            stiffness: 400,
-                            damping: 30,
-                          }}
-                        />
-                      )}
-                      <Icon
-                        size={22}
-                        strokeWidth={isActive ? 2.5 : 1.8}
-                        className="relative z-10"
-                      />
-                      <span className="text-[10px] font-medium relative z-10 tracking-wide">
-                        {item.label}
-                      </span>
+                      <Icon size={19} strokeWidth={isActive ? 2.4 : 1.8} />
+                      <span>{item.label}</span>
                     </motion.div>
                   </Link>
                 );
               })}
             </div>
-            {/* Safe area for notched phones */}
             <div className="h-[env(safe-area-inset-bottom)]" />
           </div>
         </nav>

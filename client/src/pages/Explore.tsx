@@ -1,297 +1,43 @@
-/* ============================================================
- * Explore Page — Trip discovery with hero + immersive cards
- * Design: Alpine Glass / Lime-green brand
- * Full-bleed hero, staggered trip cards, glass overlays
- * ============================================================ */
-
 import { useState } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import {
-  Search,
-  MapPin,
-  Clock,
-  Star,
-  ChevronRight,
-  Mountain,
-  Filter,
-  TrendingUp,
-  Loader2,
-} from "lucide-react";
+import { ArrowRight, Cloud, MapPin, Search, Star, Wind, Loader2, Mountain } from "lucide-react";
 import { IMAGES, LOGOS } from "@/lib/data";
 import { trpc } from "@/lib/trpc";
 
-const DIFFICULTY_COLORS: Record<string, string> = {
-  Easy: "bg-green-500/20 text-green-400",
-  Moderate: "bg-yellow-500/20 text-yellow-400",
-  Hard: "bg-orange-500/20 text-orange-400",
-  Expert: "bg-red-500/20 text-red-400",
-};
-
-const FILTERS = ["All", "Easy", "Moderate", "Hard"];
+const FILTERS = ["All", "Easy", "Moderate", "Hard", "Expert"];
 
 export default function Explore() {
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
-
   const { data: trips, isLoading } = trpc.trips.list.useQuery();
-
-  const filtered = (trips ?? []).filter((t) => {
-    const matchesSearch =
-      t.title.toLowerCase().includes(search.toLowerCase()) ||
-      t.location.toLowerCase().includes(search.toLowerCase());
-    const matchesDifficulty =
-      activeFilter === "All" || t.difficulty === activeFilter;
-    return matchesSearch && matchesDifficulty;
+  const filtered = (trips ?? []).filter((trip) => {
+    const query = search.toLowerCase();
+    return (trip.title.toLowerCase().includes(query) || trip.location.toLowerCase().includes(query)) && (activeFilter === "All" || trip.difficulty === activeFilter);
   });
 
-  const formatDate = (date: Date | string) => {
-    const d = new Date(date);
-    return d.toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
-
   return (
-    <div className="min-h-screen">
-      {/* Hero Section — Full bleed with glass overlay */}
-      <section className="relative h-[70vh] min-h-[500px] overflow-hidden">
-        <img
-          src={IMAGES.hero}
-          alt="Lebanese mountains at golden hour"
-          className="absolute inset-0 w-full h-full object-cover"
-          loading="eager"
-        />
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-background" />
-
-        {/* Hero content */}
-        <div className="relative h-full flex flex-col justify-between px-5 pt-12 pb-8">
-          {/* Top bar with logo */}
-          <div className="flex items-center justify-between">
-            <img
-              src={LOGOS.iconWhite}
-              alt="Mountain Rangers"
-              className="h-28 w-auto drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]"
-            />
-            <div className="glass rounded-xl px-4 py-2.5">
-              <img
-                src={LOGOS.nameWhite}
-                alt="Mountain Rangers"
-                className="h-10 w-auto"
-              />
-            </div>
-          </div>
-
-          {/* Hero text */}
-          <div className="space-y-4">
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-4xl md:text-5xl font-serif text-white leading-tight"
-            >
-              Discover
-              <br />
-              <span className="text-lime">Lebanon's Trails</span>
-            </motion.h1>
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="text-white/70 text-base max-w-sm"
-            >
-              Book your next outdoor adventure with one tap. Premium hiking
-              experiences across the mountains of Lebanon.
-            </motion.p>
-
-            {/* Search bar — Glass */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
-              className="glass rounded-2xl flex items-center gap-3 px-4 py-3.5"
-            >
-              <Search size={18} className="text-lime shrink-0" />
-              <input
-                type="text"
-                placeholder="Search trips, locations..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="bg-transparent text-white placeholder-white/40 text-sm flex-1 outline-none"
-              />
-              <button className="p-1.5 rounded-xl bg-lime/10 text-lime">
-                <Filter size={16} />
-              </button>
-            </motion.div>
-          </div>
+    <div className="min-h-screen bg-[#f7f8f5] pb-8">
+      <section className="relative min-h-[390px] overflow-hidden rounded-b-[2.4rem] bg-[#223327]">
+        <img src={IMAGES.hero} alt="Lebanon mountain landscape" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#172019] via-[#172019]/35 to-[#172019]/10" />
+        <div className="relative flex min-h-[390px] flex-col justify-between px-5 pb-8 pt-6">
+          <div className="flex items-start justify-between"><img src={LOGOS.nameWhite} alt="Mountain Rangers" className="h-8 w-auto" /><div className="rounded-full border border-white/20 bg-black/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/80">Lebanon</div></div>
+          <div><p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c9e66b]">Premium Outdoor Adventures</p><h1 className="mt-3 max-w-xs text-4xl font-bold leading-[1.05] tracking-tight text-white">Discover Your<br />Next Adventure</h1><p className="mt-3 max-w-sm text-sm leading-relaxed text-white/75">Curated hiking experiences across Lebanon&apos;s most iconic trails</p><div className="mt-6 flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-[#9aa39b] shadow-lg"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search trips by destination..." className="min-w-0 flex-1 bg-transparent text-sm text-[#263229] outline-none placeholder:text-[#aeb5ae]" /></div></div>
         </div>
       </section>
 
-      {/* Quick Stats */}
-      <section className="px-5 -mt-4 relative z-10">
-        <div className="glass rounded-2xl p-4 flex items-center justify-around">
-          <div className="text-center">
-            <p className="text-lime text-lg font-bold">{trips?.length ?? 0}+</p>
-            <p className="text-muted-foreground text-xs">Upcoming Trips</p>
-          </div>
-          <div className="w-px h-8 bg-white/10" />
-          <div className="text-center">
-            <p className="text-lime text-lg font-bold">24</p>
-            <p className="text-muted-foreground text-xs">Seats per Trip</p>
-          </div>
-          <div className="w-px h-8 bg-white/10" />
-          <div className="text-center">
-            <p className="text-lime text-lg font-bold">4.8</p>
-            <p className="text-muted-foreground text-xs">Avg Rating</p>
-          </div>
-        </div>
-      </section>
+      <main className="mx-auto max-w-2xl px-5">
+        <section className="-mt-4 rounded-2xl border border-black/[0.05] bg-white p-3 shadow-sm"><div className="flex items-center justify-between"><div><p className="flex items-center gap-1 text-[10px] text-[#8d968e]"><MapPin size={11} /> Beirut</p><p className="mt-1 text-xs font-semibold text-[#526057]">Overcast</p></div><div className="text-right"><p className="text-lg font-bold text-[#263229]">23°</p><p className="text-[10px] text-[#9ba39c]">20° / 24°</p></div><div className="hidden items-center gap-3 text-[10px] text-[#9ba39c] sm:flex"><span className="flex items-center gap-1"><Wind size={12} />11km/h</span><span>0%</span></div></div></section>
 
-      {/* Difficulty Filters */}
-      <section className="px-5 mt-6">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-          {FILTERS.map((f) => (
-            <button
-              key={f}
-              onClick={() => setActiveFilter(f)}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                activeFilter === f
-                  ? "bg-lime text-black"
-                  : "glass text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-      </section>
+        <section className="mt-4 grid grid-cols-3 gap-2"><div className="rounded-2xl border border-black/[0.05] bg-white p-3"><p className="text-lg font-bold text-[#719000]">{trips?.length ?? 0}</p><p className="text-[10px] font-medium text-[#8d968e]">Upcoming</p></div><div className="rounded-2xl border border-black/[0.05] bg-white p-3"><p className="text-lg font-bold text-[#263229]">500+</p><p className="text-[10px] font-medium text-[#8d968e]">Members</p></div><div className="rounded-2xl border border-black/[0.05] bg-white p-3"><p className="flex items-center gap-1 text-lg font-bold text-[#263229]">4.8<Star size={14} className="fill-[#b8d435] text-[#91a72b]" /></p><p className="text-[10px] font-medium text-[#8d968e]">Rated</p></div></section>
 
-      {/* Upcoming Trips */}
-      <section className="px-5 mt-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-serif text-foreground">Upcoming Trips</h2>
-          <span className="text-lime text-sm flex items-center gap-1">
-            <TrendingUp size={14} />
-            {filtered.length} available
-          </span>
-        </div>
+        <Link href="/private-trips"><section className="group relative mt-4 overflow-hidden rounded-2xl bg-[#273129] p-4 text-white"><img src="https://images.unsplash.com/photo-1454496522488-3558b0cbd0ac?w=800&q=80" alt="Private mountain trip" className="absolute inset-0 h-full w-full object-cover opacity-35 transition group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-r from-[#273129]/95 to-[#273129]/20" /><div className="relative"><p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#c9e66b]">Made for your group</p><h2 className="mt-1 text-lg font-bold">Private Trips, Hikes & Camps</h2><p className="mt-1 text-[10px] text-white/65">Schools · Families · Teams · Expats</p><span className="absolute right-0 top-5 grid h-9 w-9 place-items-center rounded-full bg-[#b8d435] text-[#263229]"><ArrowRight size={17} /></span></div></section></Link>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 size={32} className="text-lime animate-spin" />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {filtered.map((trip, i) => (
-              <Link key={trip.id} href={`/trip/${trip.id}`}>
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: i * 0.08 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="glass rounded-2xl overflow-hidden group"
-                >
-                  <div className="flex gap-0">
-                    {/* Trip image */}
-                    <div className="w-28 h-36 shrink-0 relative overflow-hidden">
-                      <img
-                        src={trip.imageUrl ?? ""}
-                        alt={trip.title}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/30" />
-                    </div>
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-1 no-scrollbar">{FILTERS.map((filter) => <button key={filter} onClick={() => setActiveFilter(filter)} className={`rounded-full border px-4 py-2 text-xs font-semibold whitespace-nowrap transition ${activeFilter === filter ? "border-[#b8d435] bg-[#b8d435] text-[#263229]" : "border-[#e0e5dd] bg-white text-[#7e887f]"}`}>{filter}</button>)}</div>
 
-                    {/* Trip info */}
-                    <div className="flex-1 p-3.5 flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-start justify-between gap-2">
-                          <h3 className="font-semibold text-foreground text-[15px] leading-tight font-sans">
-                            {trip.title}
-                          </h3>
-                          <span
-                            className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${
-                              DIFFICULTY_COLORS[trip.difficulty]
-                            }`}
-                          >
-                            {trip.difficulty}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 mt-1.5 text-muted-foreground">
-                          <MapPin size={12} />
-                          <span className="text-xs">{trip.location}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between mt-2">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <Clock size={12} />
-                            <span className="text-xs">{formatDate(trip.date)}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Star
-                              size={12}
-                              className="text-lime fill-lime"
-                            />
-                            <span className="text-xs text-foreground">
-                              {trip.rating}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-lime font-bold text-sm">
-                            ${trip.price}
-                          </span>
-                          <ChevronRight
-                            size={14}
-                            className="text-muted-foreground"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Seat availability bar */}
-                      <div className="mt-2">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-muted-foreground">
-                            {trip.availableSeats} seats left
-                          </span>
-                        </div>
-                        <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{
-                              width: `${(trip.bookedSeatsCount / trip.totalSeats) * 100}%`,
-                              background:
-                                trip.bookedSeatsCount / trip.totalSeats > 0.7
-                                  ? "oklch(0.65 0.2 30)"
-                                  : "oklch(0.82 0.18 120)",
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              </Link>
-            ))}
-
-            {filtered.length === 0 && (
-              <div className="text-center py-12">
-                <Mountain size={40} className="text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">No trips found</p>
-                <p className="text-muted-foreground/60 text-sm mt-1">
-                  Try adjusting your search or filters
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-      </section>
+        <section className="mt-6"><div className="mb-3 flex items-center justify-between"><h2 className="text-xl font-bold text-[#263229]">Upcoming Trips</h2><span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#8d968e]">{filtered.length} trips</span></div>{isLoading ? <div className="flex justify-center py-14"><Loader2 className="animate-spin text-[#91a72b]" /></div> : filtered.length === 0 ? <div className="rounded-3xl border border-dashed border-[#d9dfd5] bg-white/70 px-5 py-14 text-center"><Mountain className="mx-auto mb-3 text-[#c2c9c0]" size={34} /><p className="font-bold text-[#445047]">No trips found</p><p className="mt-1 text-sm text-[#909990]">Try adjusting your filters</p></div> : <div className="space-y-3">{filtered.map((trip, index) => <Link key={trip.id} href={`/trip/${trip.id}`}><motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className="flex gap-3 rounded-2xl border border-black/[0.05] bg-white p-3 shadow-sm"><img src={trip.imageUrl || IMAGES.tripCard1} alt={trip.title} className="h-20 w-24 rounded-xl object-cover" /><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><h3 className="truncate font-bold text-[#263229]">{trip.title}</h3><span className="rounded-full bg-[#eef5d8] px-2 py-1 text-[9px] font-bold text-[#719000]">{trip.difficulty}</span></div><p className="mt-1 text-xs text-[#8d968e]">{trip.location}</p><p className="mt-3 text-xs font-semibold text-[#719000]">{new Date(trip.date).toLocaleDateString()}</p></div></motion.div></Link>)}</div>}</section>
+      </main>
     </div>
   );
 }

@@ -12,7 +12,10 @@ import Booking from "./pages/Booking";
 import MyBookings from "./pages/MyBookings";
 import Community from "./pages/Community";
 import Profile from "./pages/Profile";
-import LoyaltyCard from "./pages/LoyaltyCard";
+import LoyaltyCard from "@/pages/LoyaltyCard";
+import Schedule from "@/pages/Schedule";
+import Trails from "@/pages/Trails";
+import PrivateTrips from "@/pages/PrivateTrips";
 import AdminOverview from "./pages/admin/AdminOverview";
 import AdminTrips from "./pages/admin/AdminTrips";
 import AdminBookings from "./pages/admin/AdminBookings";
@@ -53,6 +56,9 @@ function Router() {
       <Route path="/trip/:id" component={TripDetail} />
       <Route path="/book/:id" component={Booking} />
       <Route path="/bookings" component={MyBookings} />
+      <Route path="/schedule" component={Schedule} />
+      <Route path="/trails" component={Trails} />
+      <Route path="/private-trips" component={PrivateTrips} />
       <Route path="/community" component={Community} />
       <Route path="/profile" component={Profile} />
       <Route path="/loyalty" component={LoyaltyCard} />
@@ -125,7 +131,7 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="dark">
+      <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster
             position="top-center"
