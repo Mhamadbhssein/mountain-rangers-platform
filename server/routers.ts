@@ -16,6 +16,7 @@ import {
   getBookedSeatsForTrip,
   createBooking,
   getUserBookings,
+  createTripReview,
   cancelBooking,
   getAllBookingsAdmin,
   getBookingsForTrip,
@@ -220,6 +221,38 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         await cancelBooking(input.bookingId, ctx.user.id);
         return { success: true };
+      }),
+
+    submitReview: protectedProcedure
+      .input(
+        z.object({
+          bookingId: z.number(),
+          rating: z.number().int().min(1).max(5),
+          content: z.string().trim().min(10, "Please share at least a short trip story."),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const userBookings = await getUserBookings(ctx.user.id);
+        const row = userBookings.find((item) => item.booking.id === input.bookingId);
+
+        if (!row) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Booking not found." });
+        }
+        if (row.booking.status !== "completed") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Reviews are available after a trip is completed." });
+        }
+        if (row.review) {
+          throw new TRPCError({ code: "CONFLICT", message: "You already reviewed this trip." });
+        }
+
+        return createTripReview({
+          bookingId: input.bookingId,
+          userId: ctx.user.id,
+          tripId: row.trip.id,
+          tripTitle: row.trip.title,
+          rating: input.rating,
+          content: input.content,
+        });
       }),
   }),
 

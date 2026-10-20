@@ -32,6 +32,7 @@ import {
   PanelLeft,
   ArrowLeft,
   Shield,
+  ShieldCheck,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -45,6 +46,7 @@ const menuItems = [
   { icon: Users, label: "Users", path: "/admin/users" },
   { icon: Award, label: "Loyalty & NFC", path: "/admin/loyalty" },
   { icon: MessageSquare, label: "Community", path: "/admin/community" },
+  { icon: ShieldCheck, label: "Pending Posts", path: "/admin/moderation" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "admin-sidebar-width";

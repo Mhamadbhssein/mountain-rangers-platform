@@ -21,7 +21,8 @@ import AdminTrips from "./pages/admin/AdminTrips";
 import AdminBookings from "./pages/admin/AdminBookings";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminLoyalty from "./pages/admin/AdminLoyalty";
-import AdminCommunity from "./pages/admin/AdminCommunity";
+import AdminCommunity from "@/pages/admin/AdminCommunity";
+import AdminModeration from "@/pages/AdminModeration";
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 
@@ -103,6 +104,13 @@ function Router() {
         {() => (
           <AdminGuard>
             <AdminCommunity />
+          </AdminGuard>
+        )}
+      </Route>
+      <Route path="/admin/moderation">
+        {() => (
+          <AdminGuard>
+            <AdminModeration />
           </AdminGuard>
         )}
       </Route>

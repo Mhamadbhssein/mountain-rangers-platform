@@ -112,6 +112,24 @@ export type CommunityPost = typeof communityPosts.$inferSelect;
 export type InsertCommunityPost = typeof communityPosts.$inferInsert;
 
 /* ============================================================
+ * Trip Reviews — One review per completed booking
+ * ============================================================ */
+export const tripReviews = mysqlTable("trip_reviews", {
+  id: int("id").autoincrement().primaryKey(),
+  bookingId: int("bookingId").notNull().unique(),
+  userId: int("userId").notNull(),
+  tripId: int("tripId").notNull(),
+  rating: int("rating").notNull(),
+  content: text("content").notNull(),
+  postId: int("postId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TripReview = typeof tripReviews.$inferSelect;
+export type InsertTripReview = typeof tripReviews.$inferInsert;
+
+/* ============================================================
  * Post Likes — Track who liked what
  * ============================================================ */
 export const postLikes = mysqlTable("post_likes", {

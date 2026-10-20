@@ -9,6 +9,7 @@ import {
   postLikes,
   postComments,
   loyalty,
+  tripReviews,
   type InsertTrip,
   type InsertBooking,
   type InsertCommunityPost,
@@ -192,9 +193,10 @@ export async function getUserBookings(userId: number) {
   const db = await getDb();
   if (!db) return [];
   const result = await db
-    .select({ booking: bookings, trip: trips })
+    .select({ booking: bookings, trip: trips, review: tripReviews })
     .from(bookings)
     .innerJoin(trips, eq(bookings.tripId, trips.id))
+    .leftJoin(tripReviews, eq(bookings.id, tripReviews.bookingId))
     .where(eq(bookings.userId, userId))
     .orderBy(desc(bookings.bookedAt));
   return result;
@@ -391,6 +393,35 @@ export async function createPost(data: {
   };
   const result = await db.insert(communityPosts).values(values);
   return result[0].insertId;
+}
+
+export async function createTripReview(data: {
+  bookingId: number;
+  userId: number;
+  tripId: number;
+  tripTitle: string;
+  rating: number;
+  content: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const postId = await createPost({
+    userId: data.userId,
+    tripTitle: data.tripTitle,
+    content: data.content,
+  });
+
+  const result = await db.insert(tripReviews).values({
+    bookingId: data.bookingId,
+    userId: data.userId,
+    tripId: data.tripId,
+    rating: data.rating,
+    content: data.content,
+    postId,
+  });
+
+  return { id: result[0].insertId, postId };
 }
 
 export async function deletePost(postId: number) {

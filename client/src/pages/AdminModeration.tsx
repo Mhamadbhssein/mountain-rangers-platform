@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Loader2, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
+import AdminLayout from "@/components/AdminLayout";
 
 export default function AdminModeration() {
   const { data: pendingPosts, isLoading, refetch } = trpc.community.pendingPosts.useQuery();
@@ -12,12 +13,14 @@ export default function AdminModeration() {
       refetch();
       toast.success("Post approved");
     },
+    onError: (error) => toast.error(error.message || "Failed to approve post"),
   });
   const rejectMutation = trpc.community.rejectPost.useMutation({
     onSuccess: () => {
       refetch();
       toast.success("Post rejected");
     },
+    onError: (error) => toast.error(error.message || "Failed to reject post"),
   });
 
   if (isLoading) {
@@ -31,8 +34,9 @@ export default function AdminModeration() {
   const posts = pendingPosts || [];
 
   return (
-    <div className="min-h-screen bg-background p-5">
-      <div className="max-w-2xl mx-auto">
+    <AdminLayout>
+      <div className="min-h-screen bg-background p-5">
+        <div className="max-w-2xl mx-auto">
         <h1 className="text-2xl font-bold mb-2">Community Moderation</h1>
         <p className="text-muted-foreground mb-6">
           {posts.length} post{posts.length !== 1 ? "s" : ""} awaiting approval
@@ -97,7 +101,8 @@ export default function AdminModeration() {
             ))}
           </div>
         )}
+        </div>
       </div>
-    </div>
+    </AdminLayout>
   );
 }

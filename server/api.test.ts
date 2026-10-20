@@ -14,6 +14,7 @@ vi.mock("./db", () => ({
   getBookedSeatsForTrip: vi.fn(),
   createBooking: vi.fn(),
   getUserBookings: vi.fn(),
+  createTripReview: vi.fn(),
   cancelBooking: vi.fn(),
   getAllPosts: vi.fn(),
   createPost: vi.fn(),
@@ -32,6 +33,7 @@ import {
   getBookedSeatsForTrip,
   createBooking,
   getUserBookings,
+  createTripReview,
   cancelBooking,
   getAllPosts,
   createPost,
@@ -221,6 +223,46 @@ describe("bookings.cancel", () => {
 
     expect(result).toEqual({ success: true });
     expect(cancelBooking).toHaveBeenCalledWith(1, 1);
+  });
+});
+
+describe("bookings.submitReview", () => {
+  it("creates a review for a completed booking", async () => {
+    vi.mocked(getUserBookings).mockResolvedValue([
+      {
+        booking: { id: 7, status: "completed" },
+        trip: { id: 3, title: "Qadisha Valley" },
+        review: null,
+      },
+    ] as any);
+    vi.mocked(createTripReview).mockResolvedValue({ id: 12, postId: 20 });
+
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.bookings.submitReview({
+      bookingId: 7,
+      rating: 5,
+      content: "A beautiful and well-organized hike.",
+    });
+
+    expect(result).toEqual({ id: 12, postId: 20 });
+    expect(createTripReview).toHaveBeenCalledWith({
+      bookingId: 7,
+      userId: 1,
+      tripId: 3,
+      tripTitle: "Qadisha Valley",
+      rating: 5,
+      content: "A beautiful and well-organized hike.",
+    });
+  });
+
+  it("rejects reviews before a trip is completed", async () => {
+    vi.mocked(getUserBookings).mockResolvedValue([
+      { booking: { id: 7, status: "confirmed" }, trip: { id: 3, title: "Qadisha Valley" }, review: null },
+    ] as any);
+    const caller = appRouter.createCaller(createAuthContext());
+    await expect(
+      caller.bookings.submitReview({ bookingId: 7, rating: 4, content: "Not completed yet." })
+    ).rejects.toThrow("Reviews are available after a trip is completed");
   });
 });
 

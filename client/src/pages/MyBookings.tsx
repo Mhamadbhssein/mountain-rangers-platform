@@ -22,6 +22,7 @@ import {
   PersonStanding,
   Ban,
   MessageCircle,
+  Star,
 } from "lucide-react";
 import { LOGOS } from "@/lib/data";
 import { useState } from "react";
@@ -65,6 +66,9 @@ export default function MyBookings() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showTicketId, setShowTicketId] = useState<number | null>(null);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
+  const [reviewBookingId, setReviewBookingId] = useState<number | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewText, setReviewText] = useState("");
   const { isAuthenticated, loading: authLoading } = useAuth();
 
   const utils = trpc.useUtils();
@@ -83,6 +87,17 @@ export default function MyBookings() {
       toast.error(err.message || "Failed to cancel booking");
       setCancellingId(null);
     },
+  });
+
+  const reviewMutation = trpc.bookings.submitReview.useMutation({
+    onSuccess: () => {
+      toast.success("Review submitted for moderation");
+      setReviewBookingId(null);
+      setReviewRating(5);
+      setReviewText("");
+      utils.bookings.myBookings.invalidate();
+    },
+    onError: (err) => toast.error(err.message || "Failed to submit review"),
   });
 
   if (authLoading) {
@@ -119,6 +134,7 @@ export default function MyBookings() {
     (b) => b.booking.status === "completed" || b.booking.status === "cancelled"
   );
   const displayBookings = activeTab === "Upcoming" ? upcoming : past;
+  const reviewBooking = allBookings.find((row) => row.booking.id === reviewBookingId);
 
   const formatDate = (date: Date | string) => {
     const d = new Date(date);
@@ -267,6 +283,28 @@ export default function MyBookings() {
                   </div>
                 )}
 
+                {booking.status === "completed" && (
+                  <div className="px-4 pb-3">
+                    {row.review ? (
+                      <div className="flex items-center justify-center gap-2 rounded-xl bg-lime/10 py-2.5 text-xs font-medium text-lime">
+                        <CheckCircle2 size={14} />
+                        Review submitted for moderation
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setReviewBookingId(booking.id);
+                          setReviewRating(5);
+                          setReviewText("");
+                        }}
+                        className="w-full rounded-xl bg-lime py-2.5 text-xs font-semibold text-black transition-colors hover:bg-lime-light"
+                      >
+                        Share your trip review
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {/* Expandable Booking Details */}
                 <AnimatePresence>
                   {isExpanded && (
@@ -389,6 +427,44 @@ export default function MyBookings() {
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {reviewBookingId !== null && reviewBooking && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/45 p-3 sm:items-center sm:justify-center">
+          <div className="w-full max-w-md rounded-3xl bg-background p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-lime">Trip complete</p>
+                <h2 className="mt-1 text-xl font-bold text-foreground">How was {reviewBooking.trip.title}?</h2>
+              </div>
+              <button onClick={() => setReviewBookingId(null)} className="text-muted-foreground" aria-label="Close review">✕</button>
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">Your review will appear in the Community after admin approval.</p>
+            <div className="mt-5 flex justify-center gap-2" aria-label="Rating">
+              {[1, 2, 3, 4, 5].map((value) => (
+                <button key={value} onClick={() => setReviewRating(value)} aria-label={`${value} star${value === 1 ? "" : "s"}`}>
+                  <Star size={30} className={value <= reviewRating ? "fill-lime text-lime" : "text-muted-foreground/30"} />
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={reviewText}
+              onChange={(event) => setReviewText(event.target.value)}
+              placeholder="Tell the community about your trip..."
+              className="mt-5 min-h-28 w-full resize-none rounded-2xl border border-border bg-muted/40 p-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-lime"
+            />
+            <div className="mt-4 flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setReviewBookingId(null)}>Cancel</Button>
+              <Button
+                className="flex-1 bg-lime text-black hover:bg-lime-light"
+                disabled={reviewMutation.isPending || reviewText.trim().length < 10}
+                onClick={() => reviewMutation.mutate({ bookingId: reviewBookingId, rating: reviewRating, content: reviewText.trim() })}
+              >
+                {reviewMutation.isPending ? "Submitting..." : "Submit review"}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

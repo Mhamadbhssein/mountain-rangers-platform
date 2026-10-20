@@ -95,12 +95,12 @@
 ## Round 15
 - [x] Implement comments feature on community posts (expandable, add/view comments)
 - [x] Implement share feature for posts (native share or clipboard)
-- [ ] Add create post functionality (coming soon)
+- [x] Add create post functionality (coming soon)
 
 ## Round 16 (Completed)
 - [x] Add create post form with image upload and text editor (modal-based)
-- [ ] Implement admin moderation tools in admin panel
-- [ ] Add trip review system that auto-creates community posts
+- [x] Implement admin moderation tools in admin panel
+- [x] Add trip review system that auto-creates community posts
 
 ## Round 17
 - [x] Add moderation status to posts table (pending/approved/rejected)

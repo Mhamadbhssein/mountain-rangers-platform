@@ -43,6 +43,13 @@
       "when": 1772575719607,
       "tag": "0005_safe_shard",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1792521171885,
+      "tag": "0006_public_proemial_gods",
+      "breakpoints": true
     }
   ]
 }
