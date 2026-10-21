@@ -219,3 +219,76 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ============================================================
+ * Member appearance: Dark (toggled from Profile > Appearance)
+ * Applied as `mr-dark` on <html> for public pages only. Unlayered so it
+ * overrides the light palette utilities used across the public screens.
+ * ============================================================ */
+:root.mr-dark {
+  color-scheme: dark;
+  --background: #0f1511;
+  --foreground: #eef2ea;
+  --card: #1a231c;
+  --card-foreground: #eef2ea;
+  --popover: #1a231c;
+  --popover-foreground: #eef2ea;
+  --secondary: #243026;
+  --secondary-foreground: #eef2ea;
+  --muted: #243026;
+  --muted-foreground: #95a096;
+  --border: rgb(255 255 255 / 10%);
+  --input: rgb(255 255 255 / 12%);
+}
+:root.mr-dark body { background-color: #0f1511; }
+.mr-dark .bg-\[\#f7f8f5\] { background-color: #0f1511; }
+.mr-dark .bg-white { background-color: #1a231c; }
+.mr-dark .bg-white\/95 { background-color: rgb(26 35 28 / 95%); }
+.mr-dark .bg-white\/70 { background-color: rgb(26 35 28 / 70%); }
+.mr-dark .bg-\[\#f4f6ef\] { background-color: #243026; }
+.mr-dark .bg-\[\#eaf1d0\],
+.mr-dark .bg-\[\#eef5d8\],
+.mr-dark .bg-\[\#f1f6dd\],
+.mr-dark .bg-\[\#dfe8c4\] { background-color: rgb(184 212 53 / 14%); }
+.mr-dark .hover\:bg-\[\#f5f7f2\]:hover,
+.mr-dark .hover\:bg-\[\#f1f4ee\]:hover,
+.mr-dark .hover\:bg-\[\#e9eee2\]:hover { background-color: #243026; }
+.mr-dark .text-\[\#172019\],
+.mr-dark .text-\[\#263229\],
+.mr-dark .text-\[\#2b352d\],
+.mr-dark .text-\[\#344138\] { color: #eef2ea; }
+.mr-dark .text-\[\#3d4a40\],
+.mr-dark .text-\[\#445047\],
+.mr-dark .text-\[\#526057\],
+.mr-dark .text-\[\#5d675f\],
+.mr-dark .text-\[\#667168\] { color: #c3cbc1; }
+.mr-dark .text-\[\#7e887f\],
+.mr-dark .text-\[\#7f8981\],
+.mr-dark .text-\[\#8a938c\],
+.mr-dark .text-\[\#8b948d\],
+.mr-dark .text-\[\#8d968e\],
+.mr-dark .text-\[\#909990\],
+.mr-dark .text-\[\#9aa39b\],
+.mr-dark .text-\[\#9ba39c\],
+.mr-dark .text-\[\#a0a7a0\] { color: #95a096; }
+.mr-dark .text-\[\#c2c9c0\] { color: #6b756d; }
+.mr-dark .text-\[\#617900\],
+.mr-dark .text-\[\#719000\] { color: #c9e66b; }
+.mr-dark .text-\[\#91a72b\],
+.mr-dark .text-\[\#8fb31c\] { color: #b8d435; }
+.mr-dark .border-black\/5,
+.mr-dark .border-black\/\[0\.05\],
+.mr-dark .border-black\/\[0\.06\] { border-color: rgb(255 255 255 / 7%); }
+.mr-dark .border-\[\#d9dfd5\],
+.mr-dark .border-\[\#e0e5dd\],
+.mr-dark .border-\[\#dfe6c7\] { border-color: rgb(255 255 255 / 10%); }
+.mr-dark .border-\[\#c2c9c0\] { border-color: rgb(255 255 255 / 22%); }
+.mr-dark .placeholder\:text-\[\#aeb5ae\]::placeholder,
+.mr-dark input::placeholder,
+.mr-dark textarea::placeholder { color: #6b756d; }
+/* Keep dark text on lime buttons and chips. */
+.mr-dark .bg-\[\#b8d435\].text-\[\#172019\],
+.mr-dark .bg-\[\#b8d435\] .text-\[\#172019\],
+.mr-dark .bg-\[\#b8d435\] { color: #172019; }
+/* Selected appearance and filter chips that use a lime tint + dark text. */
+.mr-dark .bg-\[\#eaf1d0\].text-\[\#172019\] { color: #eef2ea; }

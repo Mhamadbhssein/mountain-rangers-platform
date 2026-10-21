@@ -4,6 +4,7 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { AppearanceProvider } from "./contexts/AppearanceContext";
 import AppLayout from "./components/AppLayout";
 import SplashScreen from "./components/SplashScreen";
 import Explore from "./pages/Explore";
@@ -15,7 +16,10 @@ import Profile from "./pages/Profile";
 import LoyaltyCard from "@/pages/LoyaltyCard";
 import Schedule from "@/pages/Schedule";
 import Trails from "@/pages/Trails";
+import TrailDetail from "@/pages/TrailDetail";
+import RecordingDetail from "@/pages/RecordingDetail";
 import PrivateTrips from "@/pages/PrivateTrips";
+import Notifications from "@/pages/Notifications";
 import AdminOverview from "./pages/admin/AdminOverview";
 import AdminTrips from "./pages/admin/AdminTrips";
 import AdminBookings from "./pages/admin/AdminBookings";
@@ -24,6 +28,7 @@ import AdminLoyalty from "./pages/admin/AdminLoyalty";
 import AdminCommunity from "@/pages/admin/AdminCommunity";
 import AdminModeration from "@/pages/AdminModeration";
 import AdminMissionControl from "./pages/admin/AdminMissionControl";
+import AdminNotifications from "./pages/admin/AdminNotifications";
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 
@@ -60,10 +65,13 @@ function Router() {
       <Route path="/bookings" component={MyBookings} />
       <Route path="/schedule" component={Schedule} />
       <Route path="/trails" component={Trails} />
+      <Route path="/trail/:id" component={TrailDetail} />
+      <Route path="/recording/:id" component={RecordingDetail} />
       <Route path="/private-trips" component={PrivateTrips} />
       <Route path="/community" component={Community} />
       <Route path="/profile" component={Profile} />
       <Route path="/loyalty" component={LoyaltyCard} />
+      <Route path="/notifications" component={Notifications} />
 
       {/* Admin routes */}
       <Route path="/admin">
@@ -122,6 +130,13 @@ function Router() {
           </AdminGuard>
         )}
       </Route>
+      <Route path="/admin/notifications">
+        {() => (
+          <AdminGuard>
+            <AdminNotifications />
+          </AdminGuard>
+        )}
+      </Route>
 
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
@@ -148,6 +163,7 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
+        <AppearanceProvider>
         <TooltipProvider>
           <Toaster
             position="top-center"
@@ -168,6 +184,7 @@ function App() {
             </AppLayout>
           )}
         </TooltipProvider>
+        </AppearanceProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

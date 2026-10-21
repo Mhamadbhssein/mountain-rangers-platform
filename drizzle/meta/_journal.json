@@ -57,6 +57,20 @@
       "when": 1792560962741,
       "tag": "0007_faulty_the_fury",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1792561887710,
+      "tag": "0008_lowly_vengeance",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1792563054113,
+      "tag": "0009_tranquil_talos",
+      "breakpoints": true
     }
   ]
 }

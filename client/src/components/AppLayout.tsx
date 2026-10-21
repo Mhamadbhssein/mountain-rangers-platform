@@ -1,17 +1,37 @@
 import { useLocation, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Compass, CalendarDays, Map, Users, User } from "lucide-react";
-import { type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { PUBLIC_NAV_ITEMS } from "@/lib/publicShell";
+import { useAppearance } from "@/contexts/AppearanceContext";
+import { NotificationBell, NotificationPopup, SiteBanner } from "@/components/NotificationCenter";
 
 const NAV_ICONS = { compass: Compass, calendar: CalendarDays, map: Map, users: Users, user: User } as const;
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
+  const { resolved } = useAppearance();
   const hideNav = location.startsWith("/book/") || location.startsWith("/trip/");
+  const hideBell = hideNav || location.startsWith("/notifications");
+
+  // Dark appearance applies to public pages only; admin keeps its own styling.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("mr-dark", resolved === "dark");
+    return () => root.classList.remove("mr-dark");
+  }, [resolved]);
 
   return (
     <div className="min-h-screen bg-[#f7f8f5] text-[#172019] flex flex-col">
+      <SiteBanner />
+      {!hideBell && (
+        <div className="sticky top-0 z-50 h-0">
+          <div className="pointer-events-none mx-auto flex max-w-2xl justify-end px-4 pt-3">
+            <NotificationBell className="pointer-events-auto" />
+          </div>
+        </div>
+      )}
+      <NotificationPopup />
       <main className={`flex-1 ${hideNav ? "" : "pb-24"}`}>
         <AnimatePresence mode="wait">
           <motion.div
@@ -31,7 +51,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <div className="mx-auto max-w-md rounded-3xl border border-black/[0.06] bg-white/95 p-2 shadow-[0_12px_40px_rgba(41,58,42,0.14)] backdrop-blur-xl">
             <div className="grid grid-cols-5 gap-1">
               {PUBLIC_NAV_ITEMS.map((item) => {
-                const isActive = item.path === "/" ? location === "/" : location.startsWith(item.path);
+                const isActive = item.path === "/"
+                  ? location === "/"
+                  : location.startsWith(item.path) || (item.path === "/trails" && (location.startsWith("/trail/") || location.startsWith("/recording/")));
                 const Icon = NAV_ICONS[item.icon];
                 return (
                   <Link key={item.path} href={item.path}>

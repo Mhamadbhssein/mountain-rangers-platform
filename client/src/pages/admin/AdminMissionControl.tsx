@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
+import { Link } from "wouter";
 import { toast } from "sonner";
 import { CalendarCheck, CreditCard, Megaphone, Mountain, Plus, Route, ShieldCheck, Sparkles, Trophy, Upload } from "lucide-react";
 
@@ -29,7 +30,6 @@ export default function AdminMissionControl() {
   });
   const createTrail = trpc.admin.createTrail.useMutation({ onSuccess: () => { utils.admin.trailCatalog.invalidate(); setShowCreate(false); toast.success("Trail added"); } });
   const importTrails = trpc.admin.importTrails.useMutation({ onSuccess: (result) => { utils.admin.trailCatalog.invalidate(); setShowCreate(false); toast.success(`${result.imported} trails imported`); }, onError: (error) => toast.error(error.message) });
-  const createBroadcast = trpc.admin.createBroadcast.useMutation({ onSuccess: () => { utils.admin.broadcasts.invalidate(); setShowCreate(false); toast.success("Broadcast saved"); } });
   const createChallenge = trpc.admin.createChallenge.useMutation({ onSuccess: () => { utils.admin.challenges.invalidate(); setShowCreate(false); toast.success("Challenge added"); } });
   const createReward = trpc.admin.createReward.useMutation({ onSuccess: () => { utils.admin.rewards.invalidate(); setShowCreate(false); toast.success("Reward added"); } });
   const createBanner = trpc.admin.createHomeBanner.useMutation({ onSuccess: () => { utils.admin.homeBanners.invalidate(); setShowCreate(false); toast.success("Home banner added"); } });
@@ -43,7 +43,7 @@ export default function AdminMissionControl() {
             <h1 className="mt-1 text-3xl font-bold text-white">Mission Control</h1>
             <p className="mt-1 text-sm text-gray-400">Manage trips, members, content, rewards, and trail activity.</p>
           </div>
-          {tab !== "Overview" && tab !== "Manifest" && tab !== "Import Trails" && tab !== "Recordings" && tab !== "Trail Subscriptions" && (
+          {tab !== "Overview" && tab !== "Manifest" && tab !== "Broadcast" && tab !== "Import Trails" && tab !== "Recordings" && tab !== "Trail Subscriptions" && (
             <Button onClick={() => setShowCreate((value) => !value)} className="bg-lime-500 text-black hover:bg-lime-400">
               <Plus className="mr-2 h-4 w-4" /> New {tab}
             </Button>
@@ -64,7 +64,7 @@ export default function AdminMissionControl() {
         {tab === "Import Trails" && <ImportPanel onImport={(value) => importTrails.mutate({ trails: value })} />}
         {tab === "Recordings" && <RecordingPanel rows={recordings ?? []} />}
         {tab === "Trail Subscriptions" && <SubscriptionPanel rows={subscriptions ?? []} />}
-        {tab === "Broadcast" && <BroadcastPanel rows={broadcasts ?? []} showCreate={showCreate} onCreate={(value) => createBroadcast.mutate(value)} />}
+        {tab === "Broadcast" && <BroadcastPanel rows={broadcasts ?? []} />}
         {tab === "Challenges" && <ChallengePanel rows={challenges ?? []} showCreate={showCreate} onCreate={(value) => createChallenge.mutate(value)} />}
         {tab === "Rewards" && <RewardPanel rows={rewards ?? []} showCreate={showCreate} onCreate={(value) => createReward.mutate(value)} />}
         {tab === "Home Banner" && <BannerPanel rows={banners ?? []} showCreate={showCreate} onCreate={(value) => createBanner.mutate(value)} />}
@@ -93,11 +93,9 @@ function TrailPanel({ trails, showCreate, onCreate }: { trails: any[]; showCreat
   return <Panel title="Trail Catalog" icon={Mountain}>{showCreate && <SimpleForm onSubmit={() => onCreate({ title, location, difficulty: "Moderate", distanceKm: Number(distance), elevationM: 0, duration: "2 hours", tags: [], isPremium: false })}><Input placeholder="Trail name" value={title} onChange={(e) => setTitle(e.target.value)} /><Input placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} /><Input placeholder="Distance km" value={distance} onChange={(e) => setDistance(e.target.value)} /></SimpleForm>}<List rows={trails} render={(row) => <><p className="font-semibold text-white">{row.title}</p><p className="text-xs text-gray-500">{row.location} · {row.difficulty} · {row.distanceKm} km · {row.elevationM} m</p></>} /></Panel>;
 }
 
-function BroadcastPanel({ rows, showCreate, onCreate }: { rows: any[]; showCreate: boolean; onCreate: (value: any) => void }) {
-  const [title, setTitle] = useState(""); const [message, setMessage] = useState("");
-  return <Panel title="Broadcast Center" icon={Megaphone}>{showCreate && <SimpleForm onSubmit={() => onCreate({ title, message, audience: "all" })}><Input placeholder="Announcement title" value={title} onChange={(e) => setTitle(e.target.value)} /><Input placeholder="Message" value={message} onChange={(e) => setMessage(e.target.value)} /></SimpleForm>}<List rows={rows} render={(row) => <><p className="font-semibold text-white">{row.title}</p><p className="text-xs text-gray-500">{row.message} · {row.audience} · {row.status}</p></>} /></Panel>;
+function BroadcastPanel({ rows }: { rows: any[]; showCreate?: boolean; onCreate?: (value: any) => void }) {
+  return <Panel title="Broadcast Center" icon={Megaphone}><div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-lime-500/20 bg-lime-500/5 p-3"><p className="text-sm text-gray-300">Write, target, preview, and send custom notifications from the Notifications page.</p><Link href="/admin/notifications" className="rounded-lg bg-lime-500 px-3 py-2 text-xs font-semibold text-black hover:bg-lime-400">Open Notifications</Link></div><List rows={rows} render={(row) => <><p className="font-semibold text-white">{row.title}</p><p className="text-xs text-gray-500">{row.message} · {row.audience} · {row.status}{row.status === "sent" ? ` · ${row.recipientCount ?? 0} recipients` : ""}</p></>} /></Panel>;
 }
-
 function ChallengePanel({ rows, showCreate, onCreate }: { rows: any[]; showCreate: boolean; onCreate: (value: any) => void }) {
   const [title, setTitle] = useState(""); const [description, setDescription] = useState("");
   return <Panel title="Challenges" icon={Trophy}>{showCreate && <SimpleForm onSubmit={() => onCreate({ title, description, target: 1, rewardPoints: 100 })}><Input placeholder="Challenge title" value={title} onChange={(e) => setTitle(e.target.value)} /><Input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} /></SimpleForm>}<List rows={rows} render={(row) => <><p className="font-semibold text-white">{row.title}</p><p className="text-xs text-gray-500">{row.description} · target {row.target} · {row.rewardPoints} points</p></>} /></Panel>;

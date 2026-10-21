@@ -5,7 +5,33 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { storagePut } from "./storage";
+import { invokeLLM } from "./_core/llm";
 import {
+  previewBroadcastRecipients,
+  updateBroadcastDraft,
+  deleteBroadcast,
+  endBroadcastBanner,
+  getBroadcastReadStats,
+  getActiveSiteBanner,
+  getUnreadNotificationCount,
+  getPendingPopup,
+  markNotificationRead,
+  deleteUserNotification,
+  clearUserNotifications,
+  getTrailById,
+  getTrailRecordingById,
+  updateUserProfile,
+  getUserActivityStats,
+  getChallengesWithProgress,
+  claimChallenge,
+  toggleFollow,
+  getFollowingIds,
+  sendBroadcast,
+  getUserNotifications,
+  markNotificationsRead,
+  getMissionControlOverview,
+  getLoyaltyLeaderboard,
+  getCommunityStats,
   getAllTrips,
   getAllTripsAdmin,
   getTripById,
@@ -95,6 +121,61 @@ async function sendWhatsAppNotification(message: string): Promise<void> {
   return Promise.resolve();
 }
 
+/* ============================================================
+ * Custom notification composer validation
+ * ============================================================ */
+const BROADCAST_AUDIENCES = ["all", "booked", "members", "admins", "trip", "user"] as const;
+const NOTIFICATION_TYPES = ["announcement", "trip", "offer", "reminder", "alert", "booking", "community", "reward"] as const;
+
+const broadcastTargetSchema = z.object({
+  audience: z.enum(BROADCAST_AUDIENCES),
+  targetTripId: z.number().int().optional().nullable(),
+  targetUserId: z.number().int().optional().nullable(),
+});
+
+/** Internal paths ("/trails") or full https links only. */
+const notificationLinkSchema = z
+  .string()
+  .trim()
+  .max(512)
+  .refine((value) => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Link must start with / or https://")
+  .optional();
+
+const broadcastInputSchema = broadcastTargetSchema.extend({
+  title: z.string().trim().min(1).max(120),
+  message: z.string().trim().min(1).max(1000),
+  type: z.enum(NOTIFICATION_TYPES).default("announcement"),
+  link: notificationLinkSchema,
+  showPopup: z.boolean().default(false),
+  showBanner: z.boolean().default(false),
+  bannerDays: z.number().int().min(1).max(60).optional(),
+  sendNow: z.boolean().default(false),
+});
+
+type BroadcastInput = z.infer<typeof broadcastInputSchema>;
+
+function assertBroadcastTarget(input: z.infer<typeof broadcastTargetSchema> & { showBanner?: boolean }) {
+  if (input.audience === "trip" && !input.targetTripId) throw new TRPCError({ code: "BAD_REQUEST", message: "Choose a trip for this notification" });
+  if (input.audience === "user" && !input.targetUserId) throw new TRPCError({ code: "BAD_REQUEST", message: "Choose a member for this notification" });
+  if (input.showBanner && input.audience !== "all") throw new TRPCError({ code: "BAD_REQUEST", message: "The site banner is only available when sending to everyone" });
+}
+
+function toBroadcastRow(input: BroadcastInput) {
+  return {
+    title: input.title,
+    message: input.message,
+    type: input.type,
+    link: input.link ? input.link : null,
+    audience: input.audience,
+    targetTripId: input.audience === "trip" ? input.targetTripId ?? null : null,
+    targetUserId: input.audience === "user" ? input.targetUserId ?? null : null,
+    showPopup: input.showPopup,
+    showBanner: input.showBanner,
+    bannerExpiresAt: input.showBanner && input.bannerDays ? new Date(Date.now() + input.bannerDays * 24 * 60 * 60 * 1000) : null,
+    status: "draft" as const,
+  };
+}
+
 export const appRouter = router({
   system: systemRouter,
 
@@ -151,6 +232,49 @@ export const appRouter = router({
    * ============================================================ */
   trailExplorer: router({
     catalog: publicProcedure.query(() => getTrailCatalog()),
+    trail: publicProcedure
+      .input(z.object({ id: z.number().int() }))
+      .query(async ({ input }) => {
+        const trail = await getTrailById(input.id);
+        if (!trail || !trail.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Trail not found" });
+        return trail;
+      }),
+    recording: protectedProcedure
+      .input(z.object({ id: z.number().int() }))
+      .query(async ({ ctx, input }) => {
+        const row = await getTrailRecordingById(input.id);
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Recording not found" });
+        if (row.recording.userId !== ctx.user.id && ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return row;
+      }),
+    trailGuide: publicProcedure
+      .input(z.object({ trailId: z.number().int(), question: z.string().min(1).max(500) }))
+      .mutation(async ({ input }) => {
+        const trail = await getTrailById(input.trailId);
+        if (!trail) throw new TRPCError({ code: "NOT_FOUND", message: "Trail not found" });
+        const facts = [
+          `Trail: ${trail.title}`,
+          `Location: ${trail.location}, Lebanon`,
+          `Difficulty: ${trail.difficulty}`,
+          `Distance: ${trail.distanceKm} km`,
+          `Elevation gain: ${trail.elevationM} m`,
+          trail.maxElevationM ? `Max elevation: ${trail.maxElevationM} m` : null,
+          `Estimated duration: ${trail.duration}`,
+          `Route type: ${trail.routeType}`,
+          trail.bestSeason ? `Best season: ${trail.bestSeason}` : null,
+          trail.description ? `Description: ${trail.description}` : null,
+          trail.tags?.length ? `Tags: ${trail.tags.join(", ")}` : null,
+        ].filter(Boolean).join("\n");
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: "You are the Mountain Rangers trail guide for hiking in Lebanon. Answer briefly and practically (under 150 words) using the trail facts given. Cover safety, gear, water, timing and weather when relevant. If something is not in the facts, say so plainly instead of inventing details. Advise contacting Mountain Rangers on WhatsApp +961 76 828 401 for live conditions." },
+            { role: "user", content: `${facts}\n\nQuestion: ${input.question}` },
+          ],
+        });
+        const content = response.choices?.[0]?.message?.content;
+        const answer = typeof content === "string" ? content : Array.isArray(content) ? content.map((part: any) => part.text ?? "").join("") : "";
+        return { answer: answer || "The trail guide is unavailable right now. Please try again shortly." };
+      }),
     recordings: protectedProcedure.query(({ ctx }) => getUserTrailRecordings(ctx.user.id)),
     record: protectedProcedure
       .input(z.object({
@@ -159,7 +283,7 @@ export const appRouter = router({
         distanceKm: z.number().min(0),
         elevationM: z.number().min(0).default(0),
         durationMinutes: z.number().min(0).default(0),
-        routeData: z.array(z.object({ lat: z.number(), lng: z.number() })).optional(),
+        routeData: z.array(z.object({ lat: z.number(), lng: z.number(), ele: z.number().optional() })).max(20000).optional(),
         startedAt: z.date().optional(),
         endedAt: z.date().optional(),
       }))
@@ -171,10 +295,26 @@ export const appRouter = router({
       .input(z.object({ plan: z.enum(["monthly", "annual"]) }))
       .mutation(({ ctx, input }) => upsertTrailSubscription(ctx.user.id, input.plan)),
     challenges: publicProcedure.query(() => getChallenges()),
+    myChallenges: protectedProcedure.query(({ ctx }) => getChallengesWithProgress(ctx.user.id)),
+    claimChallenge: protectedProcedure
+      .input(z.object({ challengeId: z.number().int() }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await claimChallenge(ctx.user.id, input.challengeId);
+        } catch (error) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Unable to claim challenge" });
+        }
+      }),
     rewards: publicProcedure.query(() => getRewards()),
     redeemReward: protectedProcedure
       .input(z.object({ rewardId: z.number() }))
-      .mutation(async ({ ctx, input }) => ({ id: await redeemReward(ctx.user.id, input.rewardId) })),
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return { id: await redeemReward(ctx.user.id, input.rewardId) };
+        } catch (error) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Unable to redeem reward" });
+        }
+      }),
     homeBanners: publicProcedure.query(() => getActiveHomeBanners()),
     checklists: protectedProcedure.query(({ ctx }) => getGearChecklists(ctx.user.id)),
     createChecklist: protectedProcedure
@@ -186,6 +326,70 @@ export const appRouter = router({
         await updateGearChecklist(input.id, ctx.user.id, input.items);
         return { success: true };
       }),
+  }),
+
+  /* ============================================================
+   * Profile, social graph, and notifications
+   * ============================================================ */
+  profile: router({
+    stats: protectedProcedure.query(({ ctx }) => getUserActivityStats(ctx.user.id)),
+    update: protectedProcedure
+      .input(z.object({
+        name: z.string().trim().min(1).max(120),
+        phone: z.string().trim().max(32).optional(),
+        dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await updateUserProfile(ctx.user.id, {
+          name: input.name,
+          phone: input.phone ? input.phone : null,
+          dateOfBirth: input.dateOfBirth ? input.dateOfBirth : null,
+        });
+        return { success: true };
+      }),
+    following: protectedProcedure.query(({ ctx }) => getFollowingIds(ctx.user.id)),
+    toggleFollow: protectedProcedure
+      .input(z.object({ userId: z.number().int() }))
+      .mutation(async ({ ctx, input }) => {
+        if (input.userId === ctx.user.id) throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot follow yourself" });
+        return { following: await toggleFollow(ctx.user.id, input.userId) };
+      }),
+    notifications: protectedProcedure.query(({ ctx }) => getUserNotifications(ctx.user.id)),
+    markNotificationsRead: protectedProcedure.mutation(async ({ ctx }) => {
+      await markNotificationsRead(ctx.user.id);
+      return { success: true };
+    }),
+    leaderboard: publicProcedure.query(() => getLoyaltyLeaderboard(10)),
+  }),
+
+  /* ============================================================
+   * Custom notifications (member side)
+   * ============================================================ */
+  notifications: router({
+    list: protectedProcedure.query(({ ctx }) => getUserNotifications(ctx.user.id)),
+    unreadCount: protectedProcedure.query(({ ctx }) => getUnreadNotificationCount(ctx.user.id)),
+    popup: protectedProcedure.query(({ ctx }) => getPendingPopup(ctx.user.id)),
+    siteBanner: publicProcedure.query(() => getActiveSiteBanner()),
+    markRead: protectedProcedure
+      .input(z.object({ id: z.number().int() }))
+      .mutation(async ({ ctx, input }) => {
+        await markNotificationRead(ctx.user.id, input.id);
+        return { success: true };
+      }),
+    markAllRead: protectedProcedure.mutation(async ({ ctx }) => {
+      await markNotificationsRead(ctx.user.id);
+      return { success: true };
+    }),
+    remove: protectedProcedure
+      .input(z.object({ id: z.number().int() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteUserNotification(ctx.user.id, input.id);
+        return { success: true };
+      }),
+    clearAll: protectedProcedure.mutation(async ({ ctx }) => {
+      await clearUserNotifications(ctx.user.id);
+      return { success: true };
+    }),
   }),
 
   /* ============================================================
@@ -339,13 +543,14 @@ export const appRouter = router({
         isLiked: likedPostIds.includes(p.post.id),
       }));
     }),
+    stats: publicProcedure.query(() => getCommunityStats()),
 
     createPost: protectedProcedure
       .input(
         z.object({
-          content: z.string().min(1),
-          tripTitle: z.string().optional(),
-          images: z.array(z.string()).optional(),
+          content: z.string().trim().min(1).max(5000),
+          tripTitle: z.string().max(255).optional(),
+          images: z.array(z.string().max(14_000_000)).max(10).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -353,9 +558,12 @@ export const appRouter = router({
         if (input.images && input.images.length > 0) {
           for (let i = 0; i < input.images.length; i++) {
             const base64 = input.images[i];
+            const mime = /^data:(image\/(?:jpeg|png|webp|gif|heic|heif));base64,/.exec(base64)?.[1] ?? "image/jpeg";
             const buffer = Buffer.from(base64.split(',')[1] || base64, 'base64');
-            const key = `posts/${ctx.user.id}/${Date.now()}-${i}.jpg`;
-            const { url } = await storagePut(key, buffer, 'image/jpeg');
+            if (buffer.length > 10 * 1024 * 1024) throw new TRPCError({ code: "BAD_REQUEST", message: "Each photo must be under 10 MB" });
+            const ext = mime.split("/")[1].replace("jpeg", "jpg");
+            const key = `posts/${ctx.user.id}/${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+            const { url } = await storagePut(key, buffer, mime);
             imageUrls.push(url);
           }
         }
@@ -648,6 +856,7 @@ export const appRouter = router({
 
     /* ---- Mission Control ---- */
     manifest: adminProcedure.query(() => getAdminManifest()),
+    missionOverview: adminProcedure.query(() => getMissionControlOverview()),
 
     checkInBooking: adminProcedure
       .input(z.object({ bookingId: z.number(), checkedIn: z.boolean() }))
@@ -665,19 +874,48 @@ export const appRouter = router({
         distanceKm: z.number().min(0),
         elevationM: z.number().min(0).default(0),
         duration: z.string().min(1),
+        maxElevationM: z.number().int().min(0).optional(),
+        routeType: z.enum(["Loop", "Out & Back", "Point to Point"]).default("Loop"),
+        bestSeason: z.string().max(128).optional(),
+        routeData: z.array(z.object({ lat: z.number(), lng: z.number(), ele: z.number().optional() })).max(20000).optional(),
         imageUrl: z.string().optional(),
         description: z.string().optional(),
         tags: z.array(z.string()).default([]),
         isPremium: z.boolean().default(false),
       }))
       .mutation(async ({ input }) => ({
-        id: await createTrailCatalog({ ...input, distanceKm: String(input.distanceKm), imageUrl: input.imageUrl ?? null, description: input.description ?? null }),
+        id: await createTrailCatalog({
+          ...input,
+          distanceKm: String(input.distanceKm),
+          maxElevationM: input.maxElevationM ?? null,
+          bestSeason: input.bestSeason || null,
+          routeData: input.routeData ?? null,
+          imageUrl: input.imageUrl || null,
+          description: input.description || null,
+        }),
       })),
     updateTrail: adminProcedure
-      .input(z.object({ id: z.number(), isActive: z.boolean().optional(), isPremium: z.boolean().optional() }))
+      .input(z.object({
+        id: z.number(),
+        isActive: z.boolean().optional(),
+        isPremium: z.boolean().optional(),
+        title: z.string().min(1).optional(),
+        location: z.string().min(1).optional(),
+        difficulty: z.enum(["Easy", "Moderate", "Hard", "Expert"]).optional(),
+        distanceKm: z.number().min(0).optional(),
+        elevationM: z.number().int().min(0).optional(),
+        maxElevationM: z.number().int().min(0).nullable().optional(),
+        duration: z.string().min(1).optional(),
+        routeType: z.enum(["Loop", "Out & Back", "Point to Point"]).optional(),
+        bestSeason: z.string().max(128).nullable().optional(),
+        description: z.string().nullable().optional(),
+        imageUrl: z.string().nullable().optional(),
+        tags: z.array(z.string()).optional(),
+        routeData: z.array(z.object({ lat: z.number(), lng: z.number(), ele: z.number().optional() })).max(20000).nullable().optional(),
+      }))
       .mutation(async ({ input }) => {
-        const { id, ...data } = input;
-        await updateTrailCatalog(id, data);
+        const { id, distanceKm, ...rest } = input;
+        await updateTrailCatalog(id, { ...rest, ...(distanceKm !== undefined ? { distanceKm: String(distanceKm) } : {}) });
         return { success: true };
       }),
     deleteTrail: adminProcedure
@@ -704,13 +942,62 @@ export const appRouter = router({
         }
         return { imported: input.trails.length };
       }),
-    broadcasts: adminProcedure.query(() => getBroadcasts()),
+    broadcasts: adminProcedure.query(async () => {
+      const [rows, stats] = await Promise.all([getBroadcasts(), getBroadcastReadStats()]);
+      return rows.map((row) => {
+        const s = stats.find((x) => x.broadcastId === row.id);
+        return { ...row, delivered: s?.delivered ?? 0, readCount: s?.read ?? 0 };
+      });
+    }),
+    previewRecipients: adminProcedure
+      .input(broadcastTargetSchema)
+      .query(({ input }) => previewBroadcastRecipients({ audience: input.audience, targetTripId: input.targetTripId ?? null, targetUserId: input.targetUserId ?? null })),
     createBroadcast: adminProcedure
-      .input(z.object({ title: z.string().min(1), message: z.string().min(1), audience: z.enum(["all", "booked", "members", "admins"]) }))
-      .mutation(async ({ input }) => ({ id: await createBroadcast({ ...input, status: "draft" }) })),
+      .input(broadcastInputSchema)
+      .mutation(async ({ input }) => {
+        assertBroadcastTarget(input);
+        const id = await createBroadcast(toBroadcastRow(input));
+        if (input.sendNow) {
+          const result = await sendBroadcast(id);
+          return { id, sent: true, recipients: result.recipients };
+        }
+        return { id, sent: false, recipients: 0 };
+      }),
+    updateBroadcast: adminProcedure
+      .input(broadcastInputSchema.extend({ id: z.number().int() }))
+      .mutation(async ({ input }) => {
+        assertBroadcastTarget(input);
+        try {
+          await updateBroadcastDraft(input.id, toBroadcastRow(input));
+        } catch (error) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Unable to update notification" });
+        }
+        return { success: true };
+      }),
+    deleteBroadcast: adminProcedure
+      .input(z.object({ id: z.number().int() }))
+      .mutation(async ({ input }) => {
+        await deleteBroadcast(input.id);
+        return { success: true };
+      }),
+    endBroadcastBanner: adminProcedure
+      .input(z.object({ id: z.number().int() }))
+      .mutation(async ({ input }) => {
+        await endBroadcastBanner(input.id);
+        return { success: true };
+      }),
+    sendBroadcast: adminProcedure
+      .input(z.object({ id: z.number().int() }))
+      .mutation(async ({ input }) => {
+        try {
+          return await sendBroadcast(input.id);
+        } catch (error) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Unable to send broadcast" });
+        }
+      }),
     challenges: adminProcedure.query(() => getAllChallengesAdmin()),
     createChallenge: adminProcedure
-      .input(z.object({ title: z.string().min(1), description: z.string().min(1), target: z.number().int().min(1), rewardPoints: z.number().int().min(0) }))
+      .input(z.object({ title: z.string().min(1), description: z.string().min(1), metric: z.enum(["trips", "distanceKm", "elevationM", "recordings"]).default("trips"), target: z.number().int().min(1), rewardPoints: z.number().int().min(0) }))
       .mutation(async ({ input }) => ({ id: await createChallenge({ ...input, isActive: true }) })),
     rewards: adminProcedure.query(() => getAllRewardsAdmin()),
     createReward: adminProcedure

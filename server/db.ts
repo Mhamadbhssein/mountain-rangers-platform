@@ -19,6 +19,9 @@ import {
   broadcasts,
   homeBanners,
   gearChecklists,
+  userChallenges,
+  userFollows,
+  notifications,
   type InsertTrip,
   type InsertBooking,
   type InsertCommunityPost,
@@ -28,6 +31,7 @@ import {
   type InsertChallenge,
   type InsertReward,
   type InsertBroadcast,
+  type Broadcast,
   type InsertHomeBanner,
   type InsertGearChecklist,
 } from "../drizzle/schema";
@@ -273,6 +277,7 @@ export async function adminCancelBooking(bookingId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(bookings).set({ status: "cancelled" }).where(eq(bookings.id, bookingId));
+  await notifyBookingStatus(bookingId, "cancelled");
 }
 
 export async function adminUpdateBookingStatus(
@@ -302,6 +307,28 @@ export async function adminUpdateBookingStatus(
   }
 
   await db.update(bookings).set({ status }).where(eq(bookings.id, bookingId));
+  await notifyBookingStatus(bookingId, status);
+}
+
+/** Sends the booking owner an automatic notification when an admin changes the status. */
+export async function notifyBookingStatus(bookingId: number, status: "confirmed" | "pending" | "completed" | "cancelled") {
+  const db = await getDb();
+  if (!db) return;
+  const rows = await db
+    .select({ userId: bookings.userId, referenceCode: bookings.referenceCode, tripTitle: trips.title })
+    .from(bookings)
+    .innerJoin(trips, eq(bookings.tripId, trips.id))
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return;
+  const messages = {
+    confirmed: { title: "Booking confirmed", message: `Your booking ${row.referenceCode} for ${row.tripTitle} is confirmed. Please arrive 30 minutes early.` },
+    pending: { title: "Booking pending", message: `Your booking ${row.referenceCode} for ${row.tripTitle} is pending confirmation.` },
+    completed: { title: "Trip completed", message: `Thanks for hiking ${row.tripTitle} with us. 100 loyalty points were added, and you can now write a review.` },
+    cancelled: { title: "Booking cancelled", message: `Your booking ${row.referenceCode} for ${row.tripTitle} was cancelled. Contact us on WhatsApp for help.` },
+  } as const;
+  await createUserNotification({ userId: row.userId, type: "booking", ...messages[status], link: "/bookings" });
 }
 
 /* ============================================================
@@ -683,6 +710,10 @@ export async function approvePost(postId: number) {
     .update(communityPosts)
     .set({ status: "approved" })
     .where(eq(communityPosts.id, postId));
+  const rows = await db.select({ userId: communityPosts.userId }).from(communityPosts).where(eq(communityPosts.id, postId)).limit(1);
+  if (rows[0]) {
+    await createUserNotification({ userId: rows[0].userId, type: "community", title: "Your post is live", message: "Your community post was approved and is now visible in the feed.", link: "/community" });
+  }
 }
 
 export async function rejectPost(postId: number) {
@@ -692,6 +723,10 @@ export async function rejectPost(postId: number) {
     .update(communityPosts)
     .set({ status: "rejected" })
     .where(eq(communityPosts.id, postId));
+  const rows = await db.select({ userId: communityPosts.userId }).from(communityPosts).where(eq(communityPosts.id, postId)).limit(1);
+  if (rows[0]) {
+    await createUserNotification({ userId: rows[0].userId, type: "community", title: "Post not approved", message: "Your community post was not approved. Contact us on WhatsApp if you have questions.", link: "/community" });
+  }
 }
 
 /* ============================================================
@@ -901,4 +936,406 @@ export async function setBookingCheckedIn(bookingId: number, checkedIn: boolean)
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(bookings).set({ checkedIn }).where(eq(bookings.id, bookingId));
+}
+
+/* ============================================================
+ * Round 20 — Base44 detail parity helpers
+ * ============================================================ */
+export async function getTrailById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(trailCatalog).where(eq(trailCatalog.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getTrailRecordingById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({ recording: trailRecordings, trail: trailCatalog, user: { id: users.id, name: users.name } })
+    .from(trailRecordings)
+    .innerJoin(users, eq(trailRecordings.userId, users.id))
+    .leftJoin(trailCatalog, eq(trailRecordings.trailId, trailCatalog.id))
+    .where(eq(trailRecordings.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function updateUserProfile(userId: number, data: { name?: string; phone?: string | null; dateOfBirth?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(users).set(data).where(eq(users.id, userId));
+}
+
+/** Aggregated activity used by Profile "Your Stats" and challenge progress. */
+export async function getUserActivityStats(userId: number) {
+  const db = await getDb();
+  const empty = { tripsBooked: 0, tripsCompleted: 0, distanceKm: 0, elevationM: 0, trailMinutes: 0, recordings: 0, posts: 0, likesReceived: 0, followers: 0, following: 0, points: 0 };
+  if (!db) return empty;
+  const [bookingRow] = await db
+    .select({
+      tripsBooked: sql<number>`SUM(CASE WHEN ${bookings.status} <> 'cancelled' THEN 1 ELSE 0 END)`,
+      tripsCompleted: sql<number>`SUM(CASE WHEN ${bookings.status} = 'completed' THEN 1 ELSE 0 END)`,
+    })
+    .from(bookings)
+    .where(eq(bookings.userId, userId));
+  const [recordingRow] = await db
+    .select({
+      recordings: count(trailRecordings.id),
+      distanceKm: sql<string>`COALESCE(SUM(${trailRecordings.distanceKm}), 0)`,
+      elevationM: sql<number>`COALESCE(SUM(${trailRecordings.elevationM}), 0)`,
+      trailMinutes: sql<number>`COALESCE(SUM(${trailRecordings.durationMinutes}), 0)`,
+    })
+    .from(trailRecordings)
+    .where(eq(trailRecordings.userId, userId));
+  const [postRow] = await db
+    .select({ posts: count(communityPosts.id), likesReceived: sql<number>`COALESCE(SUM(${communityPosts.likesCount}), 0)` })
+    .from(communityPosts)
+    .where(and(eq(communityPosts.userId, userId), eq(communityPosts.status, "approved")));
+  const [followerRow] = await db.select({ n: count(userFollows.id) }).from(userFollows).where(eq(userFollows.followingId, userId));
+  const [followingRow] = await db.select({ n: count(userFollows.id) }).from(userFollows).where(eq(userFollows.followerId, userId));
+  const loyaltyRow = await db.select({ points: loyalty.points }).from(loyalty).where(eq(loyalty.userId, userId)).limit(1);
+  return {
+    tripsBooked: Number(bookingRow?.tripsBooked ?? 0),
+    tripsCompleted: Number(bookingRow?.tripsCompleted ?? 0),
+    distanceKm: Math.round(parseFloat(String(recordingRow?.distanceKm ?? "0")) * 10) / 10,
+    elevationM: Number(recordingRow?.elevationM ?? 0),
+    trailMinutes: Number(recordingRow?.trailMinutes ?? 0),
+    recordings: Number(recordingRow?.recordings ?? 0),
+    posts: Number(postRow?.posts ?? 0),
+    likesReceived: Number(postRow?.likesReceived ?? 0),
+    followers: Number(followerRow?.n ?? 0),
+    following: Number(followingRow?.n ?? 0),
+    points: loyaltyRow[0]?.points ?? 0,
+  };
+}
+
+export function challengeProgressValue(
+  metric: "trips" | "distanceKm" | "elevationM" | "recordings",
+  stats: { tripsCompleted: number; distanceKm: number; elevationM: number; recordings: number },
+) {
+  if (metric === "trips") return stats.tripsCompleted;
+  if (metric === "distanceKm") return stats.distanceKm;
+  if (metric === "elevationM") return stats.elevationM;
+  return stats.recordings;
+}
+
+export async function getChallengesWithProgress(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const [list, stats, claims] = await Promise.all([
+    getChallenges(),
+    getUserActivityStats(userId),
+    db.select().from(userChallenges).where(eq(userChallenges.userId, userId)),
+  ]);
+  const claimed = new Set(claims.map((c) => c.challengeId));
+  return list.map((challenge) => {
+    const progress = challengeProgressValue(challenge.metric, stats);
+    return {
+      ...challenge,
+      progress: Math.min(progress, challenge.target),
+      completed: progress >= challenge.target,
+      claimed: claimed.has(challenge.id),
+    };
+  });
+}
+
+export async function claimChallenge(userId: number, challengeId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(challenges).where(eq(challenges.id, challengeId)).limit(1);
+  const challenge = rows[0];
+  if (!challenge || !challenge.isActive) throw new Error("Challenge not found");
+  const existing = await db.select().from(userChallenges)
+    .where(and(eq(userChallenges.userId, userId), eq(userChallenges.challengeId, challengeId))).limit(1);
+  if (existing.length > 0) throw new Error("Challenge already claimed");
+  const stats = await getUserActivityStats(userId);
+  if (challengeProgressValue(challenge.metric, stats) < challenge.target) throw new Error("Challenge not completed yet");
+  await getOrCreateLoyalty(userId);
+  await db.update(loyalty).set({ points: sql`${loyalty.points} + ${challenge.rewardPoints}` }).where(eq(loyalty.userId, userId));
+  await db.insert(userChallenges).values({ userId, challengeId });
+  return { pointsAwarded: challenge.rewardPoints };
+}
+
+export async function toggleFollow(followerId: number, followingId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (followerId === followingId) throw new Error("You cannot follow yourself");
+  const existing = await db.select().from(userFollows)
+    .where(and(eq(userFollows.followerId, followerId), eq(userFollows.followingId, followingId))).limit(1);
+  if (existing.length > 0) {
+    await db.delete(userFollows).where(eq(userFollows.id, existing[0].id));
+    return false;
+  }
+  await db.insert(userFollows).values({ followerId, followingId });
+  return true;
+}
+
+export async function getFollowingIds(userId: number): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({ id: userFollows.followingId }).from(userFollows).where(eq(userFollows.followerId, userId));
+  return rows.map((r) => r.id);
+}
+
+/* ============================================================
+ * Custom notifications
+ * ============================================================ */
+export const NOTIFICATION_TYPES = ["announcement", "trip", "offer", "reminder", "alert", "booking", "community", "reward"] as const;
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+
+/** Resolves the user ids a broadcast should be delivered to. */
+export async function resolveBroadcastRecipients(broadcast: Pick<Broadcast, "audience" | "targetTripId" | "targetUserId">) {
+  const db = await getDb();
+  if (!db) return [] as number[];
+  let rows: { id: number }[] = [];
+  switch (broadcast.audience) {
+    case "admins":
+      rows = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
+      break;
+    case "booked":
+      rows = await db.selectDistinct({ id: bookings.userId }).from(bookings).where(ne(bookings.status, "cancelled"));
+      break;
+    case "members":
+      rows = await db.select({ id: trailSubscriptions.userId }).from(trailSubscriptions).where(eq(trailSubscriptions.status, "active"));
+      break;
+    case "trip":
+      if (!broadcast.targetTripId) return [];
+      rows = await db.selectDistinct({ id: bookings.userId }).from(bookings)
+        .where(and(eq(bookings.tripId, broadcast.targetTripId), ne(bookings.status, "cancelled")));
+      break;
+    case "user":
+      if (!broadcast.targetUserId) return [];
+      rows = await db.select({ id: users.id }).from(users).where(eq(users.id, broadcast.targetUserId));
+      break;
+    default:
+      rows = await db.select({ id: users.id }).from(users);
+  }
+  return Array.from(new Set(rows.map((r) => r.id)));
+}
+
+export async function previewBroadcastRecipients(input: Pick<Broadcast, "audience" | "targetTripId" | "targetUserId">) {
+  return (await resolveBroadcastRecipients(input)).length;
+}
+
+/** Delivers a draft broadcast as in-app notifications to its audience. */
+export async function sendBroadcast(broadcastId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(broadcasts).where(eq(broadcasts.id, broadcastId)).limit(1);
+  const broadcast = rows[0];
+  if (!broadcast) throw new Error("Notification not found");
+  if (broadcast.status === "sent") throw new Error("Notification already sent");
+  const recipients = await resolveBroadcastRecipients(broadcast);
+  for (let i = 0; i < recipients.length; i += 500) {
+    await db.insert(notifications).values(recipients.slice(i, i + 500).map((userId) => ({
+      userId,
+      broadcastId,
+      type: broadcast.type,
+      title: broadcast.title,
+      message: broadcast.message,
+      link: broadcast.link,
+      showPopup: broadcast.showPopup,
+    })));
+  }
+  await db.update(broadcasts).set({ status: "sent", sentAt: new Date(), recipientCount: recipients.length }).where(eq(broadcasts.id, broadcastId));
+  return { recipients: recipients.length };
+}
+
+export async function updateBroadcastDraft(id: number, data: Partial<InsertBroadcast>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select({ status: broadcasts.status }).from(broadcasts).where(eq(broadcasts.id, id)).limit(1);
+  if (!rows[0]) throw new Error("Notification not found");
+  if (rows[0].status === "sent") throw new Error("Sent notifications cannot be edited");
+  await db.update(broadcasts).set(data).where(eq(broadcasts.id, id));
+}
+
+export async function deleteBroadcast(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(notifications).where(eq(notifications.broadcastId, id));
+  await db.delete(broadcasts).where(eq(broadcasts.id, id));
+}
+
+/** Ends the site-wide banner for a sent broadcast. */
+export async function endBroadcastBanner(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(broadcasts).set({ showBanner: false }).where(eq(broadcasts.id, id));
+}
+
+/** Read statistics for each sent broadcast. */
+export async function getBroadcastReadStats() {
+  const db = await getDb();
+  if (!db) return [] as { broadcastId: number; delivered: number; read: number }[];
+  const rows = await db
+    .select({
+      broadcastId: notifications.broadcastId,
+      delivered: count(notifications.id),
+      read: sql<number>`SUM(CASE WHEN ${notifications.isRead} = true THEN 1 ELSE 0 END)`,
+    })
+    .from(notifications)
+    .where(sql`${notifications.broadcastId} IS NOT NULL`)
+    .groupBy(notifications.broadcastId);
+  return rows.map((r) => ({ broadcastId: Number(r.broadcastId), delivered: Number(r.delivered), read: Number(r.read ?? 0) }));
+}
+
+/** Active site banner: latest sent broadcast with a banner that has not expired. Audience "all" only, so it is safe to show publicly. */
+export async function getActiveSiteBanner() {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({ id: broadcasts.id, title: broadcasts.title, message: broadcasts.message, type: broadcasts.type, link: broadcasts.link, sentAt: broadcasts.sentAt })
+    .from(broadcasts)
+    .where(and(
+      eq(broadcasts.status, "sent"),
+      eq(broadcasts.showBanner, true),
+      eq(broadcasts.audience, "all"),
+      sql`(${broadcasts.bannerExpiresAt} IS NULL OR ${broadcasts.bannerExpiresAt} > NOW())`,
+    ))
+    .orderBy(desc(broadcasts.sentAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Creates a single automatic notification for one member (booking updates, post moderation, rewards). */
+export async function createUserNotification(data: { userId: number; type: NotificationType; title: string; message: string; link?: string | null; showPopup?: boolean }) {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.insert(notifications).values({ ...data, link: data.link ?? null, showPopup: data.showPopup ?? false });
+  } catch (error) {
+    console.warn("[Notifications] Failed to create notification:", error);
+  }
+}
+
+export async function getUserNotifications(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt)).limit(50);
+}
+
+export async function getUnreadNotificationCount(userId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const [row] = await db.select({ n: count(notifications.id) }).from(notifications)
+    .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+  return Number(row?.n ?? 0);
+}
+
+/** Latest unread pop-up notification for the member, if any. */
+export async function getPendingPopup(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(notifications)
+    .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false), eq(notifications.showPopup, true)))
+    .orderBy(desc(notifications.createdAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function markNotificationsRead(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(notifications).set({ isRead: true }).where(eq(notifications.userId, userId));
+}
+
+export async function markNotificationRead(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(notifications).set({ isRead: true }).where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
+}
+
+export async function deleteUserNotification(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(notifications).where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
+}
+
+export async function clearUserNotifications(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(notifications).where(eq(notifications.userId, userId));
+}
+
+/** Extra Mission Control overview data: status breakdown, MRR, 6-month revenue, upcoming trips. */
+export async function getMissionControlOverview() {
+  const db = await getDb();
+  const empty = { statusCounts: { pending: 0, confirmed: 0, checkedIn: 0, cancelled: 0, completed: 0 }, trailSubsMrr: 0, revenueByMonth: [] as { month: string; revenue: number }[], upcomingTrips: [] as any[] };
+  if (!db) return empty;
+  const [statusRow] = await db
+    .select({
+      pending: sql<number>`SUM(CASE WHEN ${bookings.status} = 'pending' THEN 1 ELSE 0 END)`,
+      confirmed: sql<number>`SUM(CASE WHEN ${bookings.status} = 'confirmed' AND ${bookings.checkedIn} = false THEN 1 ELSE 0 END)`,
+      checkedIn: sql<number>`SUM(CASE WHEN ${bookings.checkedIn} = true AND ${bookings.status} <> 'cancelled' THEN 1 ELSE 0 END)`,
+      cancelled: sql<number>`SUM(CASE WHEN ${bookings.status} = 'cancelled' THEN 1 ELSE 0 END)`,
+      completed: sql<number>`SUM(CASE WHEN ${bookings.status} = 'completed' THEN 1 ELSE 0 END)`,
+    })
+    .from(bookings);
+  const subs = await db.select({ plan: trailSubscriptions.plan }).from(trailSubscriptions).where(eq(trailSubscriptions.status, "active"));
+  const trailSubsMrr = subs.reduce((total, s) => total + (s.plan === "annual" ? 40 / 12 : 4), 0);
+  const since = new Date();
+  since.setMonth(since.getMonth() - 5, 1);
+  since.setHours(0, 0, 0, 0);
+  const revenueRows = await db
+    .select({ bookedAt: bookings.bookedAt, totalPrice: bookings.totalPrice, status: bookings.status })
+    .from(bookings)
+    .where(sql`${bookings.bookedAt} >= ${since}`);
+  const months: { key: string; month: string; revenue: number }[] = [];
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(since.getFullYear(), since.getMonth() + i, 1);
+    months.push({ key: `${d.getFullYear()}-${d.getMonth()}`, month: d.toLocaleDateString("en-US", { month: "short", year: "2-digit" }), revenue: 0 });
+  }
+  for (const row of revenueRows) {
+    if (row.status !== "confirmed" && row.status !== "completed") continue;
+    const d = new Date(row.bookedAt);
+    const bucket = months.find((m) => m.key === `${d.getFullYear()}-${d.getMonth()}`);
+    if (bucket) bucket.revenue += parseFloat(String(row.totalPrice ?? "0"));
+  }
+  const upcomingTrips = await db
+    .select({ id: trips.id, title: trips.title, date: trips.date, time: trips.time, totalSeats: trips.totalSeats })
+    .from(trips)
+    .where(and(eq(trips.isActive, true), sql`${trips.date} >= NOW()`))
+    .orderBy(asc(trips.date))
+    .limit(5);
+  return {
+    statusCounts: {
+      pending: Number(statusRow?.pending ?? 0),
+      confirmed: Number(statusRow?.confirmed ?? 0),
+      checkedIn: Number(statusRow?.checkedIn ?? 0),
+      cancelled: Number(statusRow?.cancelled ?? 0),
+      completed: Number(statusRow?.completed ?? 0),
+    },
+    trailSubsMrr: Math.round(trailSubsMrr * 100) / 100,
+    revenueByMonth: months.map(({ month, revenue }) => ({ month, revenue: Math.round(revenue * 100) / 100 })),
+    upcomingTrips,
+  };
+}
+
+export async function setTrailActive(id: number, isActive: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(trailCatalog).set({ isActive }).where(eq(trailCatalog.id, id));
+}
+
+export async function getLoyaltyLeaderboard(limit = 10) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({ userId: users.id, name: users.name, avatarUrl: users.avatarUrl, points: loyalty.points, level: loyalty.level, tripsCompleted: loyalty.tripsCompleted })
+    .from(loyalty)
+    .innerJoin(users, eq(loyalty.userId, users.id))
+    .orderBy(desc(loyalty.points))
+    .limit(limit);
+}
+
+export async function getCommunityStats() {
+  const db = await getDb();
+  if (!db) return { members: 0, posts: 0, avgRating: null as number | null };
+  const [memberRow] = await db.select({ n: count(users.id) }).from(users);
+  const [postRow] = await db.select({ n: count(communityPosts.id) }).from(communityPosts).where(eq(communityPosts.status, "approved"));
+  const [ratingRow] = await db.select({ avg: sql<string | null>`AVG(${tripReviews.rating})` }).from(tripReviews);
+  const avg = ratingRow?.avg != null ? Math.round(parseFloat(String(ratingRow.avg)) * 10) / 10 : null;
+  return { members: Number(memberRow?.n ?? 0), posts: Number(postRow?.n ?? 0), avgRating: avg };
 }

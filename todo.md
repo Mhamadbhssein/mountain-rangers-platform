@@ -117,3 +117,25 @@
 - [x] Store post images in S3 when posts are created
 - [x] Display images in community feed below post content
 - [x] Add image carousel for posts with multiple photos (shows image count)
+
+## Round 20 — Base44 detail parity
+- [ ] Trail detail page (/trail/:id): hero, difficulty chip, 4 stat cards, loop/season chips, about, GPS route map, elevation profile, tags, AI Trail Guide
+- [ ] Richer trail fields in Mission Control (max elevation, route type, best season, description, image, tags, GPX route points)
+- [ ] Live GPS trail recording (start/pause/stop, distance, elevation, time) saved with route points
+- [ ] Recording detail page with route map and stats
+- [ ] Real challenge progress per member (trips, distance, elevation, recordings) with claim-to-earn points
+- [ ] Broadcast sending as in-app notifications with bell + unread count
+- [ ] Profile parity: social counts, Your Stats, editable Personal Info (name, phone, birth date), Appearance Light/Auto/Dark, links
+- [ ] Community parity: Feed / Gallery / Top tabs, All / Trending / Following filters, follow members
+- [ ] Schedule parity: All Trips / My Trips / Calendar tabs, trip dots on calendar days, My Bookings stat
+- [ ] Mission Control overview: Total Bookings, Trail Subs MRR, booking status breakdown, 6-month revenue chart, upcoming trips
+- [ ] Tests, checkpoint
+
+## Round 21 — Custom notifications
+- [x] Schema: notification type, link, pop-up, website banner, trip/member targeting, recipient count (migration 0009 applied)
+- [x] Admin Notifications page: templates, 8 types, title/message, button link, audience (everyone, booked, trip passengers, one member, premium, admins), live recipient count, preview, send now or save draft
+- [x] History with delivered/read stats, edit/send drafts, delete, end banner
+- [x] Member bell with unread badge on public pages, Notifications inbox (All/Unread, mark read, delete, clear)
+- [x] Pop-up alert on next visit and dismissible site-wide banner
+- [x] Automatic notifications for booking status changes and post approval/rejection
+- [x] Vitest coverage for permissions, validation, and delivery (61 tests passing)

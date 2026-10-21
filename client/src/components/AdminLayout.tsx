@@ -34,6 +34,7 @@ import {
   Shield,
   ShieldCheck,
   RadioTower,
+  BellRing,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -48,6 +49,7 @@ const menuItems = [
   { icon: Award, label: "Loyalty & NFC", path: "/admin/loyalty" },
   { icon: MessageSquare, label: "Community", path: "/admin/community" },
   { icon: ShieldCheck, label: "Pending Posts", path: "/admin/moderation" },
+  { icon: BellRing, label: "Notifications", path: "/admin/notifications" },
   { icon: RadioTower, label: "Mission Control", path: "/admin/mission-control" },
 ];
 

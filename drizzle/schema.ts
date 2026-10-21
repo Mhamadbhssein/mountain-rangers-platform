@@ -23,6 +23,7 @@ export const users = mysqlTable("users", {
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   avatarUrl: text("avatarUrl"),
   phone: varchar("phone", { length: 32 }),
+  dateOfBirth: varchar("dateOfBirth", { length: 16 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -188,6 +189,10 @@ export const trailCatalog = mysqlTable("trail_catalog", {
   distanceKm: decimal("distanceKm", { precision: 6, scale: 2 }).notNull(),
   elevationM: int("elevationM").default(0).notNull(),
   duration: varchar("duration", { length: 64 }).notNull(),
+  maxElevationM: int("maxElevationM"),
+  routeType: mysqlEnum("routeType", ["Loop", "Out & Back", "Point to Point"]).default("Loop").notNull(),
+  bestSeason: varchar("bestSeason", { length: 128 }),
+  routeData: json("routeData").$type<{ lat: number; lng: number; ele?: number }[]>(),
   imageUrl: text("imageUrl"),
   description: text("description"),
   tags: json("tags").$type<string[]>(),
@@ -208,7 +213,7 @@ export const trailRecordings = mysqlTable("trail_recordings", {
   distanceKm: decimal("distanceKm", { precision: 6, scale: 2 }).notNull(),
   elevationM: int("elevationM").default(0).notNull(),
   durationMinutes: int("durationMinutes").default(0).notNull(),
-  routeData: json("routeData").$type<{ lat: number; lng: number }[]>(),
+  routeData: json("routeData").$type<{ lat: number; lng: number; ele?: number }[]>(),
   startedAt: timestamp("startedAt").defaultNow().notNull(),
   endedAt: timestamp("endedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -238,6 +243,7 @@ export const challenges = mysqlTable("challenges", {
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description").notNull(),
   target: int("target").default(1).notNull(),
+  metric: mysqlEnum("metric", ["trips", "distanceKm", "elevationM", "recordings"]).default("trips").notNull(),
   rewardPoints: int("rewardPoints").default(0).notNull(),
   isActive: boolean("isActive").default(true).notNull(),
   startsAt: timestamp("startsAt"),
@@ -273,7 +279,15 @@ export const broadcasts = mysqlTable("broadcasts", {
   id: int("id").autoincrement().primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
   message: text("message").notNull(),
-  audience: mysqlEnum("audience", ["all", "booked", "members", "admins"]).default("all").notNull(),
+  type: mysqlEnum("type", ["announcement", "trip", "offer", "reminder", "alert", "booking", "community", "reward"]).default("announcement").notNull(),
+  link: varchar("link", { length: 512 }),
+  audience: mysqlEnum("audience", ["all", "booked", "members", "admins", "trip", "user"]).default("all").notNull(),
+  targetTripId: int("targetTripId"),
+  targetUserId: int("targetUserId"),
+  showPopup: boolean("showPopup").default(false).notNull(),
+  showBanner: boolean("showBanner").default(false).notNull(),
+  bannerExpiresAt: timestamp("bannerExpiresAt"),
+  recipientCount: int("recipientCount").default(0).notNull(),
   status: mysqlEnum("status", ["draft", "sent"]).default("draft").notNull(),
   sentAt: timestamp("sentAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -310,3 +324,37 @@ export const gearChecklists = mysqlTable("gear_checklists", {
 
 export type GearChecklist = typeof gearChecklists.$inferSelect;
 export type InsertGearChecklist = typeof gearChecklists.$inferInsert;
+
+export const userChallenges = mysqlTable("user_challenges", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  challengeId: int("challengeId").notNull(),
+  claimedAt: timestamp("claimedAt").defaultNow().notNull(),
+});
+
+export type UserChallenge = typeof userChallenges.$inferSelect;
+
+export const userFollows = mysqlTable("user_follows", {
+  id: int("id").autoincrement().primaryKey(),
+  followerId: int("followerId").notNull(),
+  followingId: int("followingId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type UserFollow = typeof userFollows.$inferSelect;
+
+export const notifications = mysqlTable("notifications", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  broadcastId: int("broadcastId"),
+  type: mysqlEnum("type", ["announcement", "trip", "offer", "reminder", "alert", "booking", "community", "reward"]).default("announcement").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  link: varchar("link", { length: 512 }),
+  showPopup: boolean("showPopup").default(false).notNull(),
+  isRead: boolean("isRead").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = typeof notifications.$inferInsert;
