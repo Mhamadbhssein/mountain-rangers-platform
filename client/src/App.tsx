@@ -23,6 +23,7 @@ import AdminUsers from "./pages/admin/AdminUsers";
 import AdminLoyalty from "./pages/admin/AdminLoyalty";
 import AdminCommunity from "@/pages/admin/AdminCommunity";
 import AdminModeration from "@/pages/AdminModeration";
+import AdminMissionControl from "./pages/admin/AdminMissionControl";
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 
@@ -111,6 +112,13 @@ function Router() {
         {() => (
           <AdminGuard>
             <AdminModeration />
+          </AdminGuard>
+        )}
+      </Route>
+      <Route path="/admin/mission-control">
+        {() => (
+          <AdminGuard>
+            <AdminMissionControl />
           </AdminGuard>
         )}
       </Route>

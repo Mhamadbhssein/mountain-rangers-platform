@@ -46,6 +46,12 @@ export default function LoyaltyCard() {
   const { data: loyaltyData, isLoading } = trpc.loyalty.get.useQuery(undefined, {
     enabled: isAuthenticated,
   });
+  const { data: challenges = [] } = trpc.trailExplorer.challenges.useQuery();
+  const { data: rewards = [] } = trpc.trailExplorer.rewards.useQuery();
+  const redeemReward = trpc.trailExplorer.redeemReward.useMutation({
+    onSuccess: () => toast.success("Reward redeemed"),
+    onError: (error) => toast.error(error.message),
+  });
 
   const requestNfcMutation = trpc.loyalty.requestNfcCard.useMutation({
     onSuccess: () => {
@@ -281,6 +287,22 @@ export default function LoyaltyCard() {
               </motion.div>
             );
           })}
+        </div>
+      </section>
+
+      {/* Challenges and rewards */}
+      <section className="px-5 mb-6">
+        <h2 className="text-lg font-serif text-foreground mb-4">Challenges & Rewards</h2>
+        <div className="space-y-3">
+          {challenges.slice(0, 3).map((challenge) => (
+            <div key={challenge.id} className="glass rounded-2xl p-4">
+              <div className="flex items-start gap-3"><div className="rounded-xl bg-lime/10 p-2"><Target size={16} className="text-lime" /></div><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-foreground">{challenge.title}</p><p className="mt-1 text-xs text-muted-foreground">{challenge.description}</p><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/5"><div className="h-full w-1/4 rounded-full bg-lime" /></div><p className="mt-1 text-[10px] text-muted-foreground">Target {challenge.target} · {challenge.rewardPoints} points</p></div></div>
+            </div>
+          ))}
+          {rewards.slice(0, 3).map((reward) => (
+            <div key={reward.id} className="glass rounded-2xl p-4"><div className="flex items-center gap-3"><div className="rounded-xl bg-lime/10 p-2"><Trophy size={16} className="text-lime" /></div><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-foreground">{reward.title}</p><p className="text-xs text-muted-foreground">{reward.description}</p></div><Button size="sm" onClick={() => redeemReward.mutate({ rewardId: reward.id })} disabled={redeemReward.isPending || points < reward.pointsCost} className="bg-lime text-black hover:bg-lime-light">{reward.pointsCost} pts</Button></div></div>
+          ))}
+          {challenges.length === 0 && rewards.length === 0 && <div className="glass rounded-2xl p-4 text-sm text-muted-foreground">New challenges and rewards will appear here.</div>}
         </div>
       </section>
 

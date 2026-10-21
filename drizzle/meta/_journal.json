@@ -50,6 +50,13 @@
       "when": 1792521171885,
       "tag": "0006_public_proemial_gods",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1792560962741,
+      "tag": "0007_faulty_the_fury",
+      "breakpoints": true
     }
   ]
 }

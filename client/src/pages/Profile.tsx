@@ -20,9 +20,12 @@ import {
   LogOut,
   Award,
   Loader2,
+  Check,
+  Plus,
 } from "lucide-react";
 import { LOGOS, LOYALTY_LEVELS } from "@/lib/data";
 import { toast } from "sonner";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
@@ -41,6 +44,19 @@ export default function Profile() {
 
   const { data: loyaltyData, isLoading: loyaltyLoading } = trpc.loyalty.get.useQuery(undefined, {
     enabled: isAuthenticated,
+  });
+  const { data: checklists = [] } = trpc.trailExplorer.checklists.useQuery(undefined, { enabled: isAuthenticated });
+  const checklistUtils = trpc.useUtils();
+  const [newChecklistTitle, setNewChecklistTitle] = useState("");
+  const [newItem, setNewItem] = useState("");
+  const [draftItems, setDraftItems] = useState<{ label: string; checked: boolean }[]>([]);
+  const createChecklist = trpc.trailExplorer.createChecklist.useMutation({
+    onSuccess: () => { toast.success("Gear checklist saved"); setNewChecklistTitle(""); setDraftItems([]); checklistUtils.trailExplorer.checklists.invalidate(); },
+    onError: (error) => toast.error(error.message),
+  });
+  const updateChecklist = trpc.trailExplorer.updateChecklist.useMutation({
+    onSuccess: () => checklistUtils.trailExplorer.checklists.invalidate(),
+    onError: (error) => toast.error(error.message),
   });
 
   if (authLoading) {
@@ -243,6 +259,16 @@ export default function Profile() {
           </motion.div>
         </Link>
       )}
+
+      {/* Gear checklists */}
+      <section className="glass rounded-2xl p-4 mb-5">
+        <div className="flex items-center justify-between gap-3">
+          <div><h2 className="text-sm font-semibold text-foreground">Gear Checklists</h2><p className="text-xs text-muted-foreground mt-1">Prepare before your next hike.</p></div>
+          <Plus size={17} className="text-lime" />
+        </div>
+        {checklists.length > 0 && <div className="mt-4 space-y-2">{checklists.map((checklist) => <div key={checklist.id} className="rounded-xl bg-white/5 p-3"><p className="text-sm font-semibold text-foreground">{checklist.title}</p><div className="mt-2 space-y-1">{(checklist.items ?? []).map((item, index) => <button key={`${checklist.id}-${index}`} onClick={() => updateChecklist.mutate({ id: checklist.id, items: checklist.items.map((entry, entryIndex) => entryIndex === index ? { ...entry, checked: !entry.checked } : entry) })} className="flex w-full items-center gap-2 text-left text-xs text-muted-foreground"><span className={`flex h-4 w-4 items-center justify-center rounded border ${item.checked ? "border-lime bg-lime text-black" : "border-white/20"}`}>{item.checked && <Check size={11} />}</span>{item.label}</button>)}</div></div>)}</div>}
+        <div className="mt-4 space-y-2"><input value={newChecklistTitle} onChange={(event) => setNewChecklistTitle(event.target.value)} placeholder="New checklist name" className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-foreground outline-none" /><div className="flex gap-2"><input value={newItem} onChange={(event) => setNewItem(event.target.value)} placeholder="Add gear item" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-foreground outline-none" /><button onClick={() => { if (!newItem.trim()) return; setDraftItems((items) => [...items, { label: newItem.trim(), checked: false }]); setNewItem(""); }} className="rounded-xl bg-white/10 px-3 text-xs text-foreground">Add</button></div>{draftItems.length > 0 && <p className="text-xs text-muted-foreground">{draftItems.length} item{draftItems.length === 1 ? "" : "s"} ready to save</p>}<button onClick={() => createChecklist.mutate({ title: newChecklistTitle.trim() || "Hiking Gear", items: draftItems })} disabled={createChecklist.isPending || draftItems.length === 0} className="w-full rounded-xl bg-lime py-2.5 text-xs font-semibold text-black disabled:opacity-50">{createChecklist.isPending ? "Saving..." : "Save checklist"}</button></div>
+      </section>
 
       {/* Menu items */}
       <div className="glass rounded-2xl overflow-hidden mb-5">

@@ -10,10 +10,26 @@ import {
   postComments,
   loyalty,
   tripReviews,
+  trailCatalog,
+  trailRecordings,
+  trailSubscriptions,
+  challenges,
+  rewards,
+  userRewards,
+  broadcasts,
+  homeBanners,
+  gearChecklists,
   type InsertTrip,
   type InsertBooking,
   type InsertCommunityPost,
   type InsertPostComment,
+  type InsertTrailCatalog,
+  type InsertTrailRecording,
+  type InsertChallenge,
+  type InsertReward,
+  type InsertBroadcast,
+  type InsertHomeBanner,
+  type InsertGearChecklist,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { nanoid } from "nanoid";
@@ -676,4 +692,213 @@ export async function rejectPost(postId: number) {
     .update(communityPosts)
     .set({ status: "rejected" })
     .where(eq(communityPosts.id, postId));
+}
+
+/* ============================================================
+ * Trail Explorer and Mission Control helpers
+ * ============================================================ */
+export async function getTrailCatalog() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(trailCatalog).where(eq(trailCatalog.isActive, true)).orderBy(desc(trailCatalog.createdAt));
+}
+
+export async function getAllTrailCatalogAdmin() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(trailCatalog).orderBy(desc(trailCatalog.createdAt));
+}
+
+export async function createTrailCatalog(data: InsertTrailCatalog) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(trailCatalog).values(data);
+  return result[0].insertId;
+}
+
+export async function updateTrailCatalog(id: number, data: Partial<InsertTrailCatalog>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(trailCatalog).set(data).where(eq(trailCatalog.id, id));
+}
+
+export async function deleteTrailCatalog(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(trailCatalog).set({ isActive: false }).where(eq(trailCatalog.id, id));
+}
+
+export async function getUserTrailRecordings(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ recording: trailRecordings, trail: trailCatalog })
+    .from(trailRecordings)
+    .leftJoin(trailCatalog, eq(trailRecordings.trailId, trailCatalog.id))
+    .where(eq(trailRecordings.userId, userId))
+    .orderBy(desc(trailRecordings.createdAt));
+}
+
+export async function createTrailRecording(data: InsertTrailRecording) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(trailRecordings).values(data);
+  return result[0].insertId;
+}
+
+export async function getAllTrailRecordingsAdmin() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ recording: trailRecordings, user: { id: users.id, name: users.name }, trail: trailCatalog })
+    .from(trailRecordings)
+    .innerJoin(users, eq(trailRecordings.userId, users.id))
+    .leftJoin(trailCatalog, eq(trailRecordings.trailId, trailCatalog.id))
+    .orderBy(desc(trailRecordings.createdAt));
+}
+
+export async function getTrailSubscription(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(trailSubscriptions).where(eq(trailSubscriptions.userId, userId)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function upsertTrailSubscription(userId: number, plan: "monthly" | "annual") {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await getTrailSubscription(userId);
+  const renewalDate = new Date();
+  renewalDate.setMonth(renewalDate.getMonth() + (plan === "annual" ? 12 : 1));
+  if (existing) {
+    await db.update(trailSubscriptions).set({ plan, status: "active", renewalDate }).where(eq(trailSubscriptions.userId, userId));
+    return { ...existing, plan, status: "active" as const, renewalDate };
+  }
+  const result = await db.insert(trailSubscriptions).values({ userId, plan, status: "active", renewalDate });
+  return { id: result[0].insertId, userId, plan, status: "active" as const, renewalDate };
+}
+
+export async function getAllTrailSubscriptionsAdmin() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ subscription: trailSubscriptions, user: { id: users.id, name: users.name, email: users.email } })
+    .from(trailSubscriptions)
+    .innerJoin(users, eq(trailSubscriptions.userId, users.id))
+    .orderBy(desc(trailSubscriptions.createdAt));
+}
+
+export async function getChallenges() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(challenges).where(eq(challenges.isActive, true)).orderBy(desc(challenges.createdAt));
+}
+
+export async function getAllChallengesAdmin() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(challenges).orderBy(desc(challenges.createdAt));
+}
+
+export async function createChallenge(data: InsertChallenge) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(challenges).values(data);
+  return result[0].insertId;
+}
+
+export async function getRewards() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(rewards).where(eq(rewards.isActive, true)).orderBy(asc(rewards.pointsCost));
+}
+
+export async function getAllRewardsAdmin() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(rewards).orderBy(asc(rewards.pointsCost));
+}
+
+export async function createReward(data: InsertReward) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(rewards).values(data);
+  return result[0].insertId;
+}
+
+export async function redeemReward(userId: number, rewardId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rewardRows = await db.select().from(rewards).where(eq(rewards.id, rewardId)).limit(1);
+  if (!rewardRows[0]) throw new Error("Reward not found");
+  const loyaltyRows = await db.select().from(loyalty).where(eq(loyalty.userId, userId)).limit(1);
+  if (!loyaltyRows[0] || loyaltyRows[0].points < rewardRows[0].pointsCost) throw new Error("Not enough loyalty points");
+  await db.update(loyalty).set({ points: sql`${loyalty.points} - ${rewardRows[0].pointsCost}` }).where(eq(loyalty.userId, userId));
+  const result = await db.insert(userRewards).values({ userId, rewardId });
+  return result[0].insertId;
+}
+
+export async function getBroadcasts() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(broadcasts).orderBy(desc(broadcasts.createdAt));
+}
+
+export async function createBroadcast(data: InsertBroadcast) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(broadcasts).values(data);
+  return result[0].insertId;
+}
+
+export async function getActiveHomeBanners() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(homeBanners).where(eq(homeBanners.isActive, true)).orderBy(asc(homeBanners.sortOrder));
+}
+
+export async function getAllHomeBannersAdmin() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(homeBanners).orderBy(asc(homeBanners.sortOrder));
+}
+
+export async function createHomeBanner(data: InsertHomeBanner) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(homeBanners).values(data);
+  return result[0].insertId;
+}
+
+export async function getGearChecklists(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(gearChecklists).where(eq(gearChecklists.userId, userId)).orderBy(desc(gearChecklists.updatedAt));
+}
+
+export async function createGearChecklist(data: InsertGearChecklist) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(gearChecklists).values(data);
+  return result[0].insertId;
+}
+
+export async function updateGearChecklist(id: number, userId: number, items: { label: string; checked: boolean }[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(gearChecklists).set({ items }).where(and(eq(gearChecklists.id, id), eq(gearChecklists.userId, userId)));
+}
+
+export async function getAdminManifest() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ booking: bookings, trip: trips, user: { id: users.id, name: users.name, phone: users.phone } })
+    .from(bookings)
+    .innerJoin(trips, eq(bookings.tripId, trips.id))
+    .innerJoin(users, eq(bookings.userId, users.id))
+    .where(ne(bookings.status, "cancelled"))
+    .orderBy(asc(trips.date), asc(bookings.bookedAt));
+}
+
+export async function setBookingCheckedIn(bookingId: number, checkedIn: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(bookings).set({ checkedIn }).where(eq(bookings.id, bookingId));
 }

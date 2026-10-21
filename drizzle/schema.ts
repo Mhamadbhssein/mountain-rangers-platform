@@ -85,6 +85,7 @@ export const bookings = mysqlTable("bookings", {
   phone: varchar("phone", { length: 32 }),
   hikingSticks: int("hikingSticks").default(0).notNull(),
   passengerDetails: json("passengerDetails").$type<{ name: string; phone: string }[]>(),
+  checkedIn: boolean("checkedIn").default(false).notNull(),
   bookedAt: timestamp("bookedAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -175,3 +176,137 @@ export const postComments = mysqlTable("post_comments", {
 
 export type PostComment = typeof postComments.$inferSelect;
 export type InsertPostComment = typeof postComments.$inferInsert;
+
+/* ============================================================
+ * Trail Explorer — catalog and user-recorded routes
+ * ============================================================ */
+export const trailCatalog = mysqlTable("trail_catalog", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  location: varchar("location", { length: 255 }).notNull(),
+  difficulty: mysqlEnum("difficulty", ["Easy", "Moderate", "Hard", "Expert"]).default("Moderate").notNull(),
+  distanceKm: decimal("distanceKm", { precision: 6, scale: 2 }).notNull(),
+  elevationM: int("elevationM").default(0).notNull(),
+  duration: varchar("duration", { length: 64 }).notNull(),
+  imageUrl: text("imageUrl"),
+  description: text("description"),
+  tags: json("tags").$type<string[]>(),
+  isPremium: boolean("isPremium").default(false).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TrailCatalog = typeof trailCatalog.$inferSelect;
+export type InsertTrailCatalog = typeof trailCatalog.$inferInsert;
+
+export const trailRecordings = mysqlTable("trail_recordings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  trailId: int("trailId"),
+  title: varchar("title", { length: 255 }).notNull(),
+  distanceKm: decimal("distanceKm", { precision: 6, scale: 2 }).notNull(),
+  elevationM: int("elevationM").default(0).notNull(),
+  durationMinutes: int("durationMinutes").default(0).notNull(),
+  routeData: json("routeData").$type<{ lat: number; lng: number }[]>(),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  endedAt: timestamp("endedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TrailRecording = typeof trailRecordings.$inferSelect;
+export type InsertTrailRecording = typeof trailRecordings.$inferInsert;
+
+export const trailSubscriptions = mysqlTable("trail_subscriptions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  plan: mysqlEnum("plan", ["monthly", "annual"]).default("monthly").notNull(),
+  status: mysqlEnum("status", ["active", "paused", "cancelled"]).default("active").notNull(),
+  renewalDate: timestamp("renewalDate"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TrailSubscription = typeof trailSubscriptions.$inferSelect;
+export type InsertTrailSubscription = typeof trailSubscriptions.$inferInsert;
+
+/* ============================================================
+ * Admin Mission Control content
+ * ============================================================ */
+export const challenges = mysqlTable("challenges", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  target: int("target").default(1).notNull(),
+  rewardPoints: int("rewardPoints").default(0).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  startsAt: timestamp("startsAt"),
+  endsAt: timestamp("endsAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Challenge = typeof challenges.$inferSelect;
+export type InsertChallenge = typeof challenges.$inferInsert;
+
+export const rewards = mysqlTable("rewards", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  pointsCost: int("pointsCost").default(0).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Reward = typeof rewards.$inferSelect;
+export type InsertReward = typeof rewards.$inferInsert;
+
+export const userRewards = mysqlTable("user_rewards", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  rewardId: int("rewardId").notNull(),
+  redeemedAt: timestamp("redeemedAt").defaultNow().notNull(),
+});
+
+export type UserReward = typeof userRewards.$inferSelect;
+
+export const broadcasts = mysqlTable("broadcasts", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  audience: mysqlEnum("audience", ["all", "booked", "members", "admins"]).default("all").notNull(),
+  status: mysqlEnum("status", ["draft", "sent"]).default("draft").notNull(),
+  sentAt: timestamp("sentAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Broadcast = typeof broadcasts.$inferSelect;
+export type InsertBroadcast = typeof broadcasts.$inferInsert;
+
+export const homeBanners = mysqlTable("home_banners", {
+  id: int("id").autoincrement().primaryKey(),
+  eyebrow: varchar("eyebrow", { length: 128 }),
+  title: varchar("title", { length: 255 }).notNull(),
+  subtitle: text("subtitle"),
+  imageUrl: text("imageUrl"),
+  ctaLabel: varchar("ctaLabel", { length: 128 }),
+  ctaPath: varchar("ctaPath", { length: 255 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type HomeBanner = typeof homeBanners.$inferSelect;
+export type InsertHomeBanner = typeof homeBanners.$inferInsert;
+
+export const gearChecklists = mysqlTable("gear_checklists", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  items: json("items").$type<{ label: string; checked: boolean }[]>().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type GearChecklist = typeof gearChecklists.$inferSelect;
+export type InsertGearChecklist = typeof gearChecklists.$inferInsert;

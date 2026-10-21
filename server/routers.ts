@@ -44,6 +44,34 @@ import {
   getPendingPosts,
   approvePost,
   rejectPost,
+  getTrailCatalog,
+  getAllTrailCatalogAdmin,
+  createTrailCatalog,
+  updateTrailCatalog,
+  deleteTrailCatalog,
+  getUserTrailRecordings,
+  createTrailRecording,
+  getAllTrailRecordingsAdmin,
+  getTrailSubscription,
+  getAllTrailSubscriptionsAdmin,
+  upsertTrailSubscription,
+  getChallenges,
+  getAllChallengesAdmin,
+  createChallenge,
+  getRewards,
+  getAllRewardsAdmin,
+  createReward,
+  redeemReward,
+  getBroadcasts,
+  createBroadcast,
+  getActiveHomeBanners,
+  getAllHomeBannersAdmin,
+  createHomeBanner,
+  getGearChecklists,
+  createGearChecklist,
+  updateGearChecklist,
+  getAdminManifest,
+  setBookingCheckedIn,
 } from "./db";
 
 /* Admin guard middleware */
@@ -115,6 +143,48 @@ export const appRouter = router({
       .input(z.object({ tripId: z.number() }))
       .query(async ({ input }) => {
         return getBookedSeatsForTrip(input.tripId);
+      }),
+  }),
+
+  /* ============================================================
+   * Trails, challenges, rewards, and home content
+   * ============================================================ */
+  trailExplorer: router({
+    catalog: publicProcedure.query(() => getTrailCatalog()),
+    recordings: protectedProcedure.query(({ ctx }) => getUserTrailRecordings(ctx.user.id)),
+    record: protectedProcedure
+      .input(z.object({
+        trailId: z.number().optional(),
+        title: z.string().min(1),
+        distanceKm: z.number().min(0),
+        elevationM: z.number().min(0).default(0),
+        durationMinutes: z.number().min(0).default(0),
+        routeData: z.array(z.object({ lat: z.number(), lng: z.number() })).optional(),
+        startedAt: z.date().optional(),
+        endedAt: z.date().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => ({
+        id: await createTrailRecording({ ...input, userId: ctx.user.id, distanceKm: String(input.distanceKm), routeData: input.routeData ?? null }),
+      })),
+    subscription: protectedProcedure.query(({ ctx }) => getTrailSubscription(ctx.user.id)),
+    subscribe: protectedProcedure
+      .input(z.object({ plan: z.enum(["monthly", "annual"]) }))
+      .mutation(({ ctx, input }) => upsertTrailSubscription(ctx.user.id, input.plan)),
+    challenges: publicProcedure.query(() => getChallenges()),
+    rewards: publicProcedure.query(() => getRewards()),
+    redeemReward: protectedProcedure
+      .input(z.object({ rewardId: z.number() }))
+      .mutation(async ({ ctx, input }) => ({ id: await redeemReward(ctx.user.id, input.rewardId) })),
+    homeBanners: publicProcedure.query(() => getActiveHomeBanners()),
+    checklists: protectedProcedure.query(({ ctx }) => getGearChecklists(ctx.user.id)),
+    createChecklist: protectedProcedure
+      .input(z.object({ title: z.string().min(1), items: z.array(z.object({ label: z.string().min(1), checked: z.boolean() })) }))
+      .mutation(async ({ ctx, input }) => ({ id: await createGearChecklist({ ...input, userId: ctx.user.id }) })),
+    updateChecklist: protectedProcedure
+      .input(z.object({ id: z.number(), items: z.array(z.object({ label: z.string().min(1), checked: z.boolean() })) }))
+      .mutation(async ({ ctx, input }) => {
+        await updateGearChecklist(input.id, ctx.user.id, input.items);
+        return { success: true };
       }),
   }),
 
@@ -575,6 +645,81 @@ export const appRouter = router({
         await deletePost(input.postId);
         return { success: true };
       }),
+
+    /* ---- Mission Control ---- */
+    manifest: adminProcedure.query(() => getAdminManifest()),
+
+    checkInBooking: adminProcedure
+      .input(z.object({ bookingId: z.number(), checkedIn: z.boolean() }))
+      .mutation(async ({ input }) => {
+        await setBookingCheckedIn(input.bookingId, input.checkedIn);
+        return { success: true };
+      }),
+
+    trailCatalog: adminProcedure.query(() => getAllTrailCatalogAdmin()),
+    createTrail: adminProcedure
+      .input(z.object({
+        title: z.string().min(1),
+        location: z.string().min(1),
+        difficulty: z.enum(["Easy", "Moderate", "Hard", "Expert"]),
+        distanceKm: z.number().min(0),
+        elevationM: z.number().min(0).default(0),
+        duration: z.string().min(1),
+        imageUrl: z.string().optional(),
+        description: z.string().optional(),
+        tags: z.array(z.string()).default([]),
+        isPremium: z.boolean().default(false),
+      }))
+      .mutation(async ({ input }) => ({
+        id: await createTrailCatalog({ ...input, distanceKm: String(input.distanceKm), imageUrl: input.imageUrl ?? null, description: input.description ?? null }),
+      })),
+    updateTrail: adminProcedure
+      .input(z.object({ id: z.number(), isActive: z.boolean().optional(), isPremium: z.boolean().optional() }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await updateTrailCatalog(id, data);
+        return { success: true };
+      }),
+    deleteTrail: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteTrailCatalog(input.id);
+        return { success: true };
+      }),
+
+    allRecordings: adminProcedure.query(() => getAllTrailRecordingsAdmin()),
+    trailSubscriptions: adminProcedure.query(() => getAllTrailSubscriptionsAdmin()),
+    importTrails: adminProcedure
+      .input(z.object({ trails: z.array(z.object({
+        title: z.string().min(1),
+        location: z.string().min(1),
+        difficulty: z.enum(["Easy", "Moderate", "Hard", "Expert"]),
+        distanceKm: z.number().min(0),
+        elevationM: z.number().min(0).default(0),
+        duration: z.string().min(1),
+      })).min(1).max(200) }))
+      .mutation(async ({ input }) => {
+        for (const trail of input.trails) {
+          await createTrailCatalog({ ...trail, distanceKm: String(trail.distanceKm), tags: [], isPremium: false, isActive: true, imageUrl: null, description: null });
+        }
+        return { imported: input.trails.length };
+      }),
+    broadcasts: adminProcedure.query(() => getBroadcasts()),
+    createBroadcast: adminProcedure
+      .input(z.object({ title: z.string().min(1), message: z.string().min(1), audience: z.enum(["all", "booked", "members", "admins"]) }))
+      .mutation(async ({ input }) => ({ id: await createBroadcast({ ...input, status: "draft" }) })),
+    challenges: adminProcedure.query(() => getAllChallengesAdmin()),
+    createChallenge: adminProcedure
+      .input(z.object({ title: z.string().min(1), description: z.string().min(1), target: z.number().int().min(1), rewardPoints: z.number().int().min(0) }))
+      .mutation(async ({ input }) => ({ id: await createChallenge({ ...input, isActive: true }) })),
+    rewards: adminProcedure.query(() => getAllRewardsAdmin()),
+    createReward: adminProcedure
+      .input(z.object({ title: z.string().min(1), description: z.string().min(1), pointsCost: z.number().int().min(0) }))
+      .mutation(async ({ input }) => ({ id: await createReward({ ...input, isActive: true }) })),
+    homeBanners: adminProcedure.query(() => getAllHomeBannersAdmin()),
+    createHomeBanner: adminProcedure
+      .input(z.object({ eyebrow: z.string().optional(), title: z.string().min(1), subtitle: z.string().optional(), imageUrl: z.string().optional(), ctaLabel: z.string().optional(), ctaPath: z.string().optional(), sortOrder: z.number().int().default(0) }))
+      .mutation(async ({ input }) => ({ id: await createHomeBanner({ ...input, eyebrow: input.eyebrow ?? null, subtitle: input.subtitle ?? null, imageUrl: input.imageUrl ?? null, ctaLabel: input.ctaLabel ?? null, ctaPath: input.ctaPath ?? null, isActive: true }) })),
   }),
 });
 

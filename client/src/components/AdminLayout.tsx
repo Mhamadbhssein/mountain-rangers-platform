@@ -33,6 +33,7 @@ import {
   ArrowLeft,
   Shield,
   ShieldCheck,
+  RadioTower,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -47,6 +48,7 @@ const menuItems = [
   { icon: Award, label: "Loyalty & NFC", path: "/admin/loyalty" },
   { icon: MessageSquare, label: "Community", path: "/admin/community" },
   { icon: ShieldCheck, label: "Pending Posts", path: "/admin/moderation" },
+  { icon: RadioTower, label: "Mission Control", path: "/admin/mission-control" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "admin-sidebar-width";
@@ -121,7 +123,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <SidebarProvider
-      style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
+      style={{
+        "--sidebar-width": `${sidebarWidth}px`,
+        "--sidebar": "#0d150d",
+        "--sidebar-foreground": "#e5e7eb",
+        "--sidebar-border": "#1a2a1a",
+        "--sidebar-accent": "rgba(184, 212, 53, 0.12)",
+        "--sidebar-accent-foreground": "#B8D435",
+        "--sidebar-ring": "#B8D435",
+      } as CSSProperties}
     >
       <AdminLayoutContent setSidebarWidth={setSidebarWidth}>
         {children}
