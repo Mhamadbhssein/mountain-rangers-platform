@@ -119,17 +119,17 @@
 - [x] Add image carousel for posts with multiple photos (shows image count)
 
 ## Round 20 — Base44 detail parity
-- [ ] Trail detail page (/trail/:id): hero, difficulty chip, 4 stat cards, loop/season chips, about, GPS route map, elevation profile, tags, AI Trail Guide
-- [ ] Richer trail fields in Mission Control (max elevation, route type, best season, description, image, tags, GPX route points)
-- [ ] Live GPS trail recording (start/pause/stop, distance, elevation, time) saved with route points
-- [ ] Recording detail page with route map and stats
-- [ ] Real challenge progress per member (trips, distance, elevation, recordings) with claim-to-earn points
-- [ ] Broadcast sending as in-app notifications with bell + unread count
-- [ ] Profile parity: social counts, Your Stats, editable Personal Info (name, phone, birth date), Appearance Light/Auto/Dark, links
-- [ ] Community parity: Feed / Gallery / Top tabs, All / Trending / Following filters, follow members
-- [ ] Schedule parity: All Trips / My Trips / Calendar tabs, trip dots on calendar days, My Bookings stat
-- [ ] Mission Control overview: Total Bookings, Trail Subs MRR, booking status breakdown, 6-month revenue chart, upcoming trips
-- [ ] Tests, checkpoint
+- [x] Trail detail page (/trail/:id): hero, difficulty chip, 4 stat cards, loop/season chips, about, GPS route map, elevation profile, tags, AI Trail Guide
+- [x] Richer trail fields in Mission Control (max elevation, route type, best season, description, image, tags, GPX route points)
+- [x] Live GPS trail recording (start/pause/stop, distance, elevation, time) saved with route points
+- [x] Recording detail page with route map and stats
+- [x] Real challenge progress per member (trips, distance, elevation, recordings) with claim-to-earn points
+- [x] Broadcast sending as in-app notifications with bell + unread count
+- [x] Profile parity: social counts, Your Stats, editable Personal Info (name, phone, birth date), Appearance Light/Auto/Dark, links
+- [x] Community parity: Feed / Gallery / Top tabs, All / Trending / Following filters, follow members
+- [x] Schedule parity: All Trips / My Trips / Calendar tabs, trip dots on calendar days, My Bookings stat
+- [x] Mission Control overview: Total Bookings, Trail Subs MRR, booking status breakdown, 6-month revenue chart, upcoming trips
+- [x] Tests, checkpoint
 
 ## Round 21 — Custom notifications
 - [x] Schema: notification type, link, pop-up, website banner, trip/member targeting, recipient count (migration 0009 applied)

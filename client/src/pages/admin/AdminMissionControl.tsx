@@ -15,6 +15,7 @@ export default function AdminMissionControl() {
   const [showCreate, setShowCreate] = useState(false);
   const utils = trpc.useUtils();
   const { data: stats } = trpc.admin.stats.useQuery();
+  const { data: overview } = trpc.admin.missionOverview.useQuery(undefined, { enabled: tab === "Overview" });
   const { data: manifest } = trpc.admin.manifest.useQuery(undefined, { enabled: tab === "Manifest" || tab === "Overview" });
   const { data: trails } = trpc.admin.trailCatalog.useQuery(undefined, { enabled: tab === "Trails" });
   const { data: recordings } = trpc.admin.allRecordings.useQuery(undefined, { enabled: tab === "Recordings" });
@@ -58,7 +59,7 @@ export default function AdminMissionControl() {
           ))}
         </div>
 
-        {tab === "Overview" && <Overview stats={stats} manifestCount={manifest?.length ?? 0} />}
+        {tab === "Overview" && <Overview stats={stats} overview={overview} manifestCount={manifest?.length ?? 0} />}
         {tab === "Manifest" && <Manifest rows={manifest ?? []} onCheckIn={(id, checkedIn) => checkIn.mutate({ bookingId: id, checkedIn })} />}
         {tab === "Trails" && <TrailPanel trails={trails ?? []} showCreate={showCreate} onCreate={(value) => createTrail.mutate(value)} />}
         {tab === "Import Trails" && <ImportPanel onImport={(value) => importTrails.mutate({ trails: value })} />}
@@ -73,24 +74,33 @@ export default function AdminMissionControl() {
   );
 }
 
-function Overview({ stats, manifestCount }: { stats?: { totalRevenue: number; totalBookings: number; activeTrips: number; totalUsers: number }; manifestCount: number }) {
+function Overview({ stats, overview, manifestCount }: { stats?: { totalRevenue: number; totalBookings: number; activeTrips: number; totalUsers: number }; overview?: { statusCounts: Record<string, number>; trailSubsMrr: number; revenueByMonth: { month: string; revenue: number }[]; upcomingTrips: any[] }; manifestCount: number }) {
   const cards = [
     ["Total Revenue", `$${stats?.totalRevenue ?? 0}`, Sparkles],
-    ["Passengers", String(stats?.totalBookings ?? 0), CalendarCheck],
+    ["Total Bookings", String(stats?.totalBookings ?? 0), CalendarCheck],
     ["Active Trips", String(stats?.activeTrips ?? 0), Mountain],
+    ["Trail Subs MRR", `$${overview?.trailSubsMrr ?? 0}/mo`, CreditCard],
     ["Members", String(stats?.totalUsers ?? 0), ShieldCheck],
-    ["Manifest Rows", String(manifestCount), CalendarCheck],
   ] as const;
-  return <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{cards.map(([label, value, Icon]) => <div key={label} className="rounded-2xl border border-[#1a2a1a] bg-[#0d150d] p-4"><Icon className="h-5 w-5 text-lime-400" /><p className="mt-4 text-2xl font-bold text-white">{value}</p><p className="mt-1 text-xs text-gray-500">{label}</p></div>)}</div>;
+  const maxRevenue = Math.max(...(overview?.revenueByMonth ?? []).map((item) => item.revenue), 1);
+  const statuses = [["Pending", "pending"], ["Confirmed", "confirmed"], ["Checked In", "checkedIn"], ["Completed", "completed"], ["Cancelled", "cancelled"]] as const;
+  return <div className="space-y-5">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{cards.map(([label, value, Icon]) => <div key={label} className="rounded-2xl border border-[#1a2a1a] bg-[#0d150d] p-4"><Icon className="h-5 w-5 text-lime-400" /><p className="mt-4 text-2xl font-bold text-white">{value}</p><p className="mt-1 text-xs text-gray-500">{label}</p></div>)}</div>
+    <div className="grid gap-5 lg:grid-cols-2">
+      <Panel title="Booking Status" icon={CalendarCheck}><div className="grid grid-cols-2 gap-2 sm:grid-cols-5">{statuses.map(([label, key]) => <div key={key} className="rounded-xl bg-white/5 p-3"><p className="text-xl font-bold text-white">{overview?.statusCounts?.[key] ?? 0}</p><p className="text-[11px] text-gray-500">{label}</p></div>)}</div></Panel>
+      <Panel title="Revenue · Last 6 Months" icon={CreditCard}><div className="flex h-32 items-end gap-2">{(overview?.revenueByMonth ?? []).map((item) => <div key={item.month} className="flex flex-1 flex-col items-center gap-1"><span className="text-[10px] text-gray-400">${Math.round(item.revenue)}</span><div className="w-full rounded-t bg-lime-500" style={{ height: `${Math.max(8, item.revenue / maxRevenue * 88)}px` }} /><span className="text-[10px] text-gray-500">{item.month}</span></div>)}</div></Panel>
+    </div>
+    <Panel title="Upcoming Trips" icon={Mountain}>{(overview?.upcomingTrips ?? []).length === 0 ? <Empty text="No upcoming trips." /> : <List rows={overview?.upcomingTrips ?? []} render={(trip) => <><p className="font-semibold text-white">{trip.title}</p><p className="text-xs text-gray-500">{new Date(trip.date).toLocaleDateString()} · {trip.time} · {trip.totalSeats} seats</p></>} />}</Panel>
+    <p className="text-xs text-gray-500">Manifest currently has {manifestCount} active booking rows.</p>
+  </div>;
 }
-
 function Manifest({ rows, onCheckIn }: { rows: any[]; onCheckIn: (id: number, checkedIn: boolean) => void }) {
   return <Panel title="Trip Manifest" icon={CalendarCheck}>{rows.length === 0 ? <Empty text="No active bookings in the manifest." /> : <div className="space-y-2">{rows.map(({ booking, trip, user }) => <div key={booking.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-[#1a2a1a] bg-[#0d150d] p-3"><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-white">{user.name ?? "Guest"} · {trip.title}</p><p className="text-xs text-gray-500">{booking.referenceCode} · seats {(booking.seats ?? []).join(", ")} · {booking.phone ?? user.phone ?? "No phone"}</p></div><Button size="sm" onClick={() => onCheckIn(booking.id, !booking.checkedIn)} className={booking.checkedIn ? "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30" : "bg-lime-500 text-black hover:bg-lime-400"}>{booking.checkedIn ? "Checked in" : "Check in"}</Button></div>)}</div>}</Panel>;
 }
 
 function TrailPanel({ trails, showCreate, onCreate }: { trails: any[]; showCreate: boolean; onCreate: (value: any) => void }) {
-  const [title, setTitle] = useState(""); const [location, setLocation] = useState(""); const [distance, setDistance] = useState("7");
-  return <Panel title="Trail Catalog" icon={Mountain}>{showCreate && <SimpleForm onSubmit={() => onCreate({ title, location, difficulty: "Moderate", distanceKm: Number(distance), elevationM: 0, duration: "2 hours", tags: [], isPremium: false })}><Input placeholder="Trail name" value={title} onChange={(e) => setTitle(e.target.value)} /><Input placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} /><Input placeholder="Distance km" value={distance} onChange={(e) => setDistance(e.target.value)} /></SimpleForm>}<List rows={trails} render={(row) => <><p className="font-semibold text-white">{row.title}</p><p className="text-xs text-gray-500">{row.location} · {row.difficulty} · {row.distanceKm} km · {row.elevationM} m</p></>} /></Panel>;
+  const [title, setTitle] = useState(""); const [location, setLocation] = useState(""); const [distance, setDistance] = useState("7"); const [elevation, setElevation] = useState("0"); const [maxElevation, setMaxElevation] = useState(""); const [season, setSeason] = useState(""); const [description, setDescription] = useState(""); const [tags, setTags] = useState("");
+  return <Panel title="Trail Catalog" icon={Mountain}>{showCreate && <SimpleForm onSubmit={() => onCreate({ title, location, difficulty: "Moderate", distanceKm: Number(distance), elevationM: Number(elevation), maxElevationM: maxElevation ? Number(maxElevation) : undefined, duration: "2 hours", bestSeason: season || undefined, description: description || undefined, tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean), routeType: "Loop", isPremium: false })}><Input placeholder="Trail name" value={title} onChange={(e) => setTitle(e.target.value)} /><Input placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} /><Input placeholder="Distance km" value={distance} onChange={(e) => setDistance(e.target.value)} /><Input placeholder="Elevation gain m" value={elevation} onChange={(e) => setElevation(e.target.value)} /><Input placeholder="Max elevation m" value={maxElevation} onChange={(e) => setMaxElevation(e.target.value)} /><Input placeholder="Best season" value={season} onChange={(e) => setSeason(e.target.value)} /><Input placeholder="Tags, comma separated" value={tags} onChange={(e) => setTags(e.target.value)} /><Input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} /></SimpleForm>}<List rows={trails} render={(row) => <><p className="font-semibold text-white">{row.title}</p><p className="text-xs text-gray-500">{row.location} · {row.difficulty} · {row.distanceKm} km · +{row.elevationM} m · max {row.maxElevationM ?? "—"} m · {row.routeType ?? "Loop"}</p><p className="mt-1 text-xs text-gray-600">{row.bestSeason ?? "Season not set"}{row.tags?.length ? ` · ${row.tags.join(", ")}` : ""}</p></>} /></Panel>;
 }
 
 function BroadcastPanel({ rows }: { rows: any[]; showCreate?: boolean; onCreate?: (value: any) => void }) {

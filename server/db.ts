@@ -867,6 +867,7 @@ export async function redeemReward(userId: number, rewardId: number) {
   if (!loyaltyRows[0] || loyaltyRows[0].points < rewardRows[0].pointsCost) throw new Error("Not enough loyalty points");
   await db.update(loyalty).set({ points: sql`${loyalty.points} - ${rewardRows[0].pointsCost}` }).where(eq(loyalty.userId, userId));
   const result = await db.insert(userRewards).values({ userId, rewardId });
+  await createUserNotification({ userId, type: "reward", title: "Reward redeemed", message: `You redeemed "${rewardRows[0].title}" for ${rewardRows[0].pointsCost} points. Show this at your next trip or contact us on WhatsApp.`, link: "/loyalty" });
   return result[0].insertId;
 }
 
@@ -1054,6 +1055,7 @@ export async function claimChallenge(userId: number, challengeId: number) {
   await getOrCreateLoyalty(userId);
   await db.update(loyalty).set({ points: sql`${loyalty.points} + ${challenge.rewardPoints}` }).where(eq(loyalty.userId, userId));
   await db.insert(userChallenges).values({ userId, challengeId });
+  await createUserNotification({ userId, type: "reward", title: "Challenge completed", message: `You completed "${challenge.title}" and earned ${challenge.rewardPoints} loyalty points.`, link: "/loyalty" });
   return { pointsAwarded: challenge.rewardPoints };
 }
 

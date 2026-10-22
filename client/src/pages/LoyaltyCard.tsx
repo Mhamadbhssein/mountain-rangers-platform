@@ -46,12 +46,25 @@ export default function LoyaltyCard() {
   const { data: loyaltyData, isLoading } = trpc.loyalty.get.useQuery(undefined, {
     enabled: isAuthenticated,
   });
-  const { data: challenges = [] } = trpc.trailExplorer.challenges.useQuery();
+  const utils = trpc.useUtils();
+  const { data: publicChallenges = [] } = trpc.trailExplorer.challenges.useQuery(undefined, { enabled: !isAuthenticated });
+  const { data: myChallenges = [] } = trpc.trailExplorer.myChallenges.useQuery(undefined, { enabled: isAuthenticated });
+  const challenges: Array<{ id: number; title: string; description: string; target: number; rewardPoints: number; metric?: string; progress?: number; completed?: boolean; claimed?: boolean }> = isAuthenticated ? myChallenges : publicChallenges;
   const { data: rewards = [] } = trpc.trailExplorer.rewards.useQuery();
   const redeemReward = trpc.trailExplorer.redeemReward.useMutation({
-    onSuccess: () => toast.success("Reward redeemed"),
+    onSuccess: () => { toast.success("Reward redeemed"); utils.loyalty.get.invalidate(); utils.notifications.unreadCount.invalidate(); },
     onError: (error) => toast.error(error.message),
   });
+  const claimChallenge = trpc.trailExplorer.claimChallenge.useMutation({
+    onSuccess: (result) => {
+      toast.success(`+${result.pointsAwarded} points added to your card`);
+      utils.trailExplorer.myChallenges.invalidate();
+      utils.loyalty.get.invalidate();
+      utils.notifications.unreadCount.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const metricUnit = (metric?: string) => (metric === "distanceKm" ? "km" : metric === "elevationM" ? "m" : metric === "recordings" ? "recordings" : "trips");
 
   const requestNfcMutation = trpc.loyalty.requestNfcCard.useMutation({
     onSuccess: () => {
@@ -294,11 +307,31 @@ export default function LoyaltyCard() {
       <section className="px-5 mb-6">
         <h2 className="text-lg font-serif text-foreground mb-4">Challenges & Rewards</h2>
         <div className="space-y-3">
-          {challenges.slice(0, 3).map((challenge) => (
-            <div key={challenge.id} className="glass rounded-2xl p-4">
-              <div className="flex items-start gap-3"><div className="rounded-xl bg-lime/10 p-2"><Target size={16} className="text-lime" /></div><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-foreground">{challenge.title}</p><p className="mt-1 text-xs text-muted-foreground">{challenge.description}</p><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/5"><div className="h-full w-1/4 rounded-full bg-lime" /></div><p className="mt-1 text-[10px] text-muted-foreground">Target {challenge.target} · {challenge.rewardPoints} points</p></div></div>
-            </div>
-          ))}
+          {challenges.slice(0, 6).map((challenge) => {
+            const progress = challenge.progress ?? 0;
+            const pct = challenge.target > 0 ? Math.min(100, Math.round((progress / challenge.target) * 100)) : 0;
+            return (
+              <div key={challenge.id} className="glass rounded-2xl p-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-xl bg-lime/10 p-2"><Target size={16} className="text-lime" /></div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-semibold text-foreground">{challenge.title}</p>
+                      <span className="shrink-0 text-[11px] font-bold text-lime">+{challenge.rewardPoints} pts</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{challenge.description}</p>
+                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-black/5"><div className="h-full rounded-full bg-lime transition-all" style={{ width: `${isAuthenticated ? pct : 0}%` }} /></div>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <p className="text-[11px] text-muted-foreground">{isAuthenticated ? `${progress} / ${challenge.target} ${metricUnit(challenge.metric)}` : `Goal: ${challenge.target} ${metricUnit(challenge.metric)}`}</p>
+                      {isAuthenticated && challenge.claimed && <span className="rounded-full bg-lime/15 px-2.5 py-1 text-[11px] font-bold text-lime">Claimed</span>}
+                      {isAuthenticated && !challenge.claimed && challenge.completed && <Button size="sm" onClick={() => claimChallenge.mutate({ challengeId: challenge.id })} disabled={claimChallenge.isPending} className="h-7 bg-lime px-3 text-xs font-bold text-black hover:bg-lime-light">Claim</Button>}
+                      {isAuthenticated && !challenge.claimed && !challenge.completed && <span className="text-[11px] font-semibold text-muted-foreground">{pct}%</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
           {rewards.slice(0, 3).map((reward) => (
             <div key={reward.id} className="glass rounded-2xl p-4"><div className="flex items-center gap-3"><div className="rounded-xl bg-lime/10 p-2"><Trophy size={16} className="text-lime" /></div><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-foreground">{reward.title}</p><p className="text-xs text-muted-foreground">{reward.description}</p></div><Button size="sm" onClick={() => redeemReward.mutate({ rewardId: reward.id })} disabled={redeemReward.isPending || points < reward.pointsCost} className="bg-lime text-black hover:bg-lime-light">{reward.pointsCost} pts</Button></div></div>
           ))}
