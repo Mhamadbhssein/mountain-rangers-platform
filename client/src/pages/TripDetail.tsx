@@ -28,7 +28,7 @@ import {
 import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { MapView } from "@/components/Map";
+import { MapView, mapboxgl } from "@/components/Map";
 
 const DIFFICULTY_COLORS: Record<string, string> = {
   Easy: "bg-green-500/20 text-green-400 border-green-500/30",
@@ -61,16 +61,12 @@ export default function TripDetail() {
     { enabled: !isNaN(tripId) }
   );
 
-  const handleMapReady = useCallback((map: google.maps.Map) => {
+  const handleMapReady = useCallback((map: mapboxgl.Map) => {
     if (!trip?.meetingPointLat || !trip?.meetingPointLng) return;
-    const pos = { lat: Number(trip.meetingPointLat), lng: Number(trip.meetingPointLng) };
+    const pos: [number, number] = [Number(trip.meetingPointLng), Number(trip.meetingPointLat)];
     map.setCenter(pos);
     map.setZoom(14);
-    new google.maps.marker.AdvancedMarkerElement({
-      map,
-      position: pos,
-      title: trip.meetingPoint ?? "Meeting Point",
-    });
+    new mapboxgl.Marker().setLngLat(pos).setPopup(new mapboxgl.Popup().setText(trip.meetingPoint ?? "Meeting Point")).addTo(map);
   }, [trip]);
 
   const toggleCheck = (item: string) => {

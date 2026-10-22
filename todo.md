@@ -139,3 +139,9 @@
 - [x] Pop-up alert on next visit and dismissible site-wide banner
 - [x] Automatic notifications for booking status changes and post approval/rejection
 - [x] Vitest coverage for permissions, validation, and delivery (61 tests passing)
+
+## Explore Banner Management
+- [x] Connect Explore hero background, eyebrow, title, and subtitle to the active admin-managed banner.
+- [x] Add editable Home Banner fields in Mission Control.
+- [x] Add S3-backed background image upload with preview.
+- [x] Add save, edit, and activate controls so one selected banner is shown on Explore.

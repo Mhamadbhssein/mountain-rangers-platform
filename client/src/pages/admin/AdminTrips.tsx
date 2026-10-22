@@ -43,7 +43,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { MapView } from "@/components/Map";
+import { MapView, mapboxgl } from "@/components/Map";
 
 type Difficulty = "Easy" | "Moderate" | "Hard" | "Expert";
 
@@ -110,8 +110,8 @@ export default function AdminTrips() {
   const [uploadingAdditional, setUploadingAdditional] = useState(false);
   const mainImageInputRef = useRef<HTMLInputElement>(null);
   const additionalImageInputRef = useRef<HTMLInputElement>(null);
-  const mapRef = useRef<google.maps.Map | null>(null);
-  const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const markerRef = useRef<mapboxgl.Marker | null>(null);
 
   const uploadMutation = trpc.upload.tripImage.useMutation();
 
@@ -232,36 +232,21 @@ export default function AdminTrips() {
     }));
   };
 
-  const handleMapReady = useCallback((map: google.maps.Map) => {
+  const handleMapReady = useCallback((map: mapboxgl.Map) => {
     mapRef.current = map;
-    // If there's already a pinned location, center on it
     if (form.meetingPointLat && form.meetingPointLng) {
-      map.setCenter({ lat: form.meetingPointLat, lng: form.meetingPointLng });
+      const position: [number, number] = [form.meetingPointLng, form.meetingPointLat];
+      map.setCenter(position);
       map.setZoom(14);
-      markerRef.current = new google.maps.marker.AdvancedMarkerElement({
-        map,
-        position: { lat: form.meetingPointLat, lng: form.meetingPointLng },
-        title: "Meeting Point",
-      });
+      markerRef.current = new mapboxgl.Marker().setLngLat(position).setPopup(new mapboxgl.Popup().setText("Meeting Point")).addTo(map);
     }
-    // Click to pin
-    map.addListener("click", (e: google.maps.MapMouseEvent) => {
-      if (!e.latLng) return;
-      const lat = e.latLng.lat();
-      const lng = e.latLng.lng();
-      // Remove old marker
-      if (markerRef.current) {
-        markerRef.current.map = null;
-      }
-      markerRef.current = new google.maps.marker.AdvancedMarkerElement({
-        map,
-        position: { lat, lng },
-        title: "Meeting Point",
-      });
+    map.on("click", (event) => {
+      const { lat, lng } = event.lngLat;
+      markerRef.current?.remove();
+      markerRef.current = new mapboxgl.Marker().setLngLat([lng, lat]).setPopup(new mapboxgl.Popup().setText("Meeting Point")).addTo(map);
       setForm((f) => ({ ...f, meetingPointLat: lat, meetingPointLng: lng }));
     });
   }, [form.meetingPointLat, form.meetingPointLng]);
-
   const handleSubmit = () => {
     const payload = {
       title: form.title,

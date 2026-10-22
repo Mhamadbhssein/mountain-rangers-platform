@@ -93,6 +93,8 @@ import {
   getActiveHomeBanners,
   getAllHomeBannersAdmin,
   createHomeBanner,
+  updateHomeBanner,
+  activateHomeBanner,
   getGearChecklists,
   createGearChecklist,
   updateGearChecklist,
@@ -645,6 +647,15 @@ export const appRouter = router({
    * File Upload (admin)
    * ============================================================ */
   upload: router({
+    bannerImage: adminProcedure
+      .input(z.object({ filename: z.string(), contentType: z.string().regex(/^image\/(jpeg|png|webp|avif|gif)$/), base64Data: z.string().max(14_000_000) }))
+      .mutation(async ({ input }) => {
+        const buffer = Buffer.from(input.base64Data, "base64");
+        const ext = input.filename.split(".").pop() ?? "jpg";
+        const key = `home-banners/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { url } = await storagePut(key, buffer, input.contentType);
+        return { url };
+      }),
     tripImage: adminProcedure
       .input(
         z.object({
@@ -1006,7 +1017,13 @@ export const appRouter = router({
     homeBanners: adminProcedure.query(() => getAllHomeBannersAdmin()),
     createHomeBanner: adminProcedure
       .input(z.object({ eyebrow: z.string().optional(), title: z.string().min(1), subtitle: z.string().optional(), imageUrl: z.string().optional(), ctaLabel: z.string().optional(), ctaPath: z.string().optional(), sortOrder: z.number().int().default(0) }))
-      .mutation(async ({ input }) => ({ id: await createHomeBanner({ ...input, eyebrow: input.eyebrow ?? null, subtitle: input.subtitle ?? null, imageUrl: input.imageUrl ?? null, ctaLabel: input.ctaLabel ?? null, ctaPath: input.ctaPath ?? null, isActive: true }) })),
+      .mutation(async ({ input }) => { const id = await createHomeBanner({ ...input, eyebrow: input.eyebrow ?? null, subtitle: input.subtitle ?? null, imageUrl: input.imageUrl ?? null, ctaLabel: input.ctaLabel ?? null, ctaPath: input.ctaPath ?? null, isActive: true }); await activateHomeBanner(Number(id)); return { id }; }),
+    updateHomeBanner: adminProcedure
+      .input(z.object({ id: z.number().int(), eyebrow: z.string().optional(), title: z.string().min(1), subtitle: z.string().optional(), imageUrl: z.string().optional(), ctaLabel: z.string().optional(), ctaPath: z.string().optional(), sortOrder: z.number().int().optional(), isActive: z.boolean().optional() }))
+      .mutation(async ({ input }) => { const { id, ...data } = input; await updateHomeBanner(id, { ...data, eyebrow: data.eyebrow ?? null, subtitle: data.subtitle ?? null, imageUrl: data.imageUrl ?? null, ctaLabel: data.ctaLabel ?? null, ctaPath: data.ctaPath ?? null }); return { success: true }; }),
+    activateHomeBanner: adminProcedure
+      .input(z.object({ id: z.number().int() }))
+      .mutation(async ({ input }) => { await activateHomeBanner(input.id); return { success: true }; }),
   }),
 });
 

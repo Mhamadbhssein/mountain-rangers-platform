@@ -34,6 +34,9 @@ export default function AdminMissionControl() {
   const createChallenge = trpc.admin.createChallenge.useMutation({ onSuccess: () => { utils.admin.challenges.invalidate(); setShowCreate(false); toast.success("Challenge added"); } });
   const createReward = trpc.admin.createReward.useMutation({ onSuccess: () => { utils.admin.rewards.invalidate(); setShowCreate(false); toast.success("Reward added"); } });
   const createBanner = trpc.admin.createHomeBanner.useMutation({ onSuccess: () => { utils.admin.homeBanners.invalidate(); setShowCreate(false); toast.success("Home banner added"); } });
+  const updateBanner = trpc.admin.updateHomeBanner.useMutation({ onSuccess: () => { utils.admin.homeBanners.invalidate(); toast.success("Explore banner updated"); } });
+  const activateBanner = trpc.admin.activateHomeBanner.useMutation({ onSuccess: () => { utils.admin.homeBanners.invalidate(); toast.success("Active Explore banner changed"); } });
+  const uploadBanner = trpc.upload.bannerImage.useMutation({ onError: (error) => toast.error(error.message) });
 
   return (
     <AdminLayout>
@@ -68,7 +71,7 @@ export default function AdminMissionControl() {
         {tab === "Broadcast" && <BroadcastPanel rows={broadcasts ?? []} />}
         {tab === "Challenges" && <ChallengePanel rows={challenges ?? []} showCreate={showCreate} onCreate={(value) => createChallenge.mutate(value)} />}
         {tab === "Rewards" && <RewardPanel rows={rewards ?? []} showCreate={showCreate} onCreate={(value) => createReward.mutate(value)} />}
-        {tab === "Home Banner" && <BannerPanel rows={banners ?? []} showCreate={showCreate} onCreate={(value) => createBanner.mutate(value)} />}
+        {tab === "Home Banner" && <BannerPanel rows={banners ?? []} showCreate={showCreate} onCreate={(value) => createBanner.mutate(value)} onSave={(value) => updateBanner.mutate(value)} onActivate={(id) => activateBanner.mutate({ id })} onUpload={(file) => uploadBanner.mutateAsync(file)} />}
       </div>
     </AdminLayout>
   );
@@ -116,11 +119,29 @@ function RewardPanel({ rows, showCreate, onCreate }: { rows: any[]; showCreate: 
   return <Panel title="Rewards Store" icon={Sparkles}>{showCreate && <SimpleForm onSubmit={() => onCreate({ title, description, pointsCost: 100 })}><Input placeholder="Reward title" value={title} onChange={(e) => setTitle(e.target.value)} /><Input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} /></SimpleForm>}<List rows={rows} render={(row) => <><p className="font-semibold text-white">{row.title}</p><p className="text-xs text-gray-500">{row.description} · {row.pointsCost} points</p></>} /></Panel>;
 }
 
-function BannerPanel({ rows, showCreate, onCreate }: { rows: any[]; showCreate: boolean; onCreate: (value: any) => void }) {
-  const [title, setTitle] = useState(""); const [subtitle, setSubtitle] = useState("");
-  return <Panel title="Home Banner" icon={Mountain}>{showCreate && <SimpleForm onSubmit={() => onCreate({ title, subtitle, sortOrder: 0 })}><Input placeholder="Banner title" value={title} onChange={(e) => setTitle(e.target.value)} /><Input placeholder="Subtitle" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} /></SimpleForm>}<List rows={rows} render={(row) => <><p className="font-semibold text-white">{row.title}</p><p className="text-xs text-gray-500">{row.subtitle ?? "No subtitle"} · {row.isActive ? "active" : "inactive"}</p></>} /></Panel>;
+function BannerPanel({ rows, showCreate, onCreate, onSave, onActivate, onUpload }: { rows: any[]; showCreate: boolean; onCreate: (value: any) => void; onSave: (value: any) => void; onActivate: (id: number) => void; onUpload: (value: { filename: string; contentType: string; base64Data: string }) => Promise<{ url: string }> }) {
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [eyebrow, setEyebrow] = useState(""); const [title, setTitle] = useState(""); const [subtitle, setSubtitle] = useState(""); const [imageUrl, setImageUrl] = useState(""); const [ctaLabel, setCtaLabel] = useState(""); const [ctaPath, setCtaPath] = useState(""); const [uploading, setUploading] = useState(false);
+  const startEdit = (row: any) => { setEditingId(row.id); setEyebrow(row.eyebrow ?? ""); setTitle(row.title ?? ""); setSubtitle(row.subtitle ?? ""); setImageUrl(row.imageUrl ?? ""); setCtaLabel(row.ctaLabel ?? ""); setCtaPath(row.ctaPath ?? ""); };
+  const clear = () => { setEditingId(null); setEyebrow(""); setTitle(""); setSubtitle(""); setImageUrl(""); setCtaLabel(""); setCtaPath(""); };
+  const save = () => { const value = { eyebrow: eyebrow || undefined, title: title.trim(), subtitle: subtitle || undefined, imageUrl: imageUrl || undefined, ctaLabel: ctaLabel || undefined, ctaPath: ctaPath || undefined, sortOrder: 0 }; if (!value.title) { toast.error("Add a banner title"); return; } if (editingId) onSave({ id: editingId, ...value }); else onCreate(value); };
+  const upload = async (file?: File) => { if (!file) return; if (!file.type.startsWith("image/")) { toast.error("Choose an image file"); return; } setUploading(true); try { const result = await onUpload({ filename: file.name, contentType: file.type, base64Data: await fileToBase64(file) }); setImageUrl(result.url); toast.success("Background image uploaded"); } catch (error) { toast.error(error instanceof Error ? error.message : "Upload failed"); } finally { setUploading(false); } };
+  return <Panel title="Explore Hero Banner" icon={Mountain}>
+    <p className="mb-4 text-sm text-gray-400">Choose the background image and text shown at the top of the public Explore page. Only the active banner is displayed.</p>
+    {(showCreate || editingId) && <div className="mb-5 grid gap-2 rounded-xl border border-lime-500/20 bg-lime-500/5 p-3 sm:grid-cols-2">
+      <Input placeholder="Eyebrow" value={eyebrow} onChange={(e) => setEyebrow(e.target.value)} />
+      <Input placeholder="Banner title" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <Input placeholder="Subtitle" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
+      <Input placeholder="CTA label (optional)" value={ctaLabel} onChange={(e) => setCtaLabel(e.target.value)} />
+      <Input placeholder="CTA path (optional)" value={ctaPath} onChange={(e) => setCtaPath(e.target.value)} />
+      <div className="flex items-center gap-2"><label className="flex cursor-pointer items-center gap-2 rounded-lg border border-lime-500/30 px-3 py-2 text-xs font-semibold text-lime-300 hover:bg-lime-500/10"><Upload className="h-4 w-4" />{uploading ? "Uploading…" : "Upload background"}<input type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="hidden" onChange={(e) => upload(e.target.files?.[0])} /></label>{imageUrl && <span className="truncate text-[11px] text-emerald-300">Image ready</span>}</div>
+      {imageUrl && <img src={imageUrl} alt="Banner preview" className="h-28 w-full rounded-xl object-cover sm:col-span-2" />}
+      <div className="flex gap-2 sm:col-span-2"><Button onClick={save} className="bg-lime-500 text-black hover:bg-lime-400">{editingId ? "Save changes" : "Create banner"}</Button>{editingId && <Button variant="outline" onClick={clear} className="border-white/10 text-white">Cancel</Button>}</div>
+    </div>}
+    <List rows={rows} render={(row) => <div className="flex flex-wrap items-center gap-3"><div className="h-16 w-24 shrink-0 overflow-hidden rounded-lg bg-black/30">{row.imageUrl ? <img src={row.imageUrl} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-[10px] text-gray-600">No image</div>}</div><div className="min-w-0 flex-1"><p className="font-semibold text-white">{row.title}</p><p className="text-xs text-gray-500">{row.subtitle ?? "No subtitle"} · {row.isActive ? "active" : "inactive"}</p></div><div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => startEdit(row)} className="border-white/10 text-white">Edit</Button>{!row.isActive && <Button size="sm" onClick={() => onActivate(row.id)} className="bg-lime-500 text-black hover:bg-lime-400">Use on Explore</Button>}</div></div>} />
+  </Panel>;
 }
-
+async function fileToBase64(file: File) { return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] ?? ""); reader.onerror = () => reject(reader.error ?? new Error("Unable to read file")); reader.readAsDataURL(file); }); }
 function ImportPanel({ onImport }: { onImport: (value: { title: string; location: string; difficulty: "Easy" | "Moderate" | "Hard" | "Expert"; distanceKm: number; elevationM: number; duration: string }[]) => void }) {
   const [csv, setCsv] = useState("title,location,difficulty,distanceKm,elevationM,duration\nHorsh Ehden,North Lebanon,Moderate,7.1,602,2 hours 43 minutes");
   const parse = () => {

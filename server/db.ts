@@ -902,6 +902,17 @@ export async function createHomeBanner(data: InsertHomeBanner) {
   const result = await db.insert(homeBanners).values(data);
   return result[0].insertId;
 }
+export async function updateHomeBanner(id: number, data: Partial<InsertHomeBanner>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(homeBanners).set(data).where(eq(homeBanners.id, id));
+}
+export async function activateHomeBanner(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(homeBanners).set({ isActive: false }).where(eq(homeBanners.isActive, true));
+  await db.update(homeBanners).set({ isActive: true }).where(eq(homeBanners.id, id));
+}
 
 export async function getGearChecklists(userId: number) {
   const db = await getDb();
