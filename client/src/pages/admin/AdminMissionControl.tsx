@@ -2,8 +2,8 @@ import AdminLayout from "@/components/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
-import { Link } from "wouter";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { CalendarCheck, CreditCard, Megaphone, Mountain, Plus, Route, ShieldCheck, Sparkles, Trophy, Upload } from "lucide-react";
 
@@ -13,6 +13,7 @@ type Tab = (typeof tabs)[number];
 export default function AdminMissionControl() {
   const [tab, setTab] = useState<Tab>("Overview");
   const [showCreate, setShowCreate] = useState(false);
+  const [location] = useLocation();
   const utils = trpc.useUtils();
   const { data: stats } = trpc.admin.stats.useQuery();
   const { data: overview } = trpc.admin.missionOverview.useQuery(undefined, { enabled: tab === "Overview" });
@@ -24,6 +25,11 @@ export default function AdminMissionControl() {
   const { data: challenges } = trpc.admin.challenges.useQuery(undefined, { enabled: tab === "Challenges" });
   const { data: rewards } = trpc.admin.rewards.useQuery(undefined, { enabled: tab === "Rewards" });
   const { data: banners } = trpc.admin.homeBanners.useQuery(undefined, { enabled: tab === "Home Banner" });
+
+  useEffect(() => {
+    const queryTab = new URLSearchParams(location.split("?")[1] ?? "").get("tab") as Tab | null;
+    if (queryTab && tabs.includes(queryTab)) setTab(queryTab);
+  }, [location]);
 
   const checkIn = trpc.admin.checkInBooking.useMutation({
     onSuccess: () => { utils.admin.manifest.invalidate(); toast.success("Manifest updated"); },
